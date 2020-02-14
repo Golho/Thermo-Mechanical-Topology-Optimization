@@ -1,0 +1,11 @@
+//+
+SetFactory("OpenCASCADE");
+Rectangle(1) = {0, 0, 0, 1, 0.5, 0};
+//+
+Transfinite Surface {1} = {1, 2, 3, 4};
+//+
+Physical Curve("left") = {4};
+//+
+Physical Curve("right") = {2};
+//+
+Physical Surface("solid") = {1};

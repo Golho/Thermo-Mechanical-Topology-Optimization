@@ -1,0 +1,16 @@
+// Gmsh project created on Fri Mar  6 10:12:23 2020
+SetFactory("OpenCASCADE");
+//+
+Rectangle(1) = {0, 0, 0, 20, 1, 0};
+//+
+Physical Curve("inlet") = {4};
+//+
+Physical Curve("outlet") = {2};
+//+
+Physical Surface("solid") = {1};
+//+
+Transfinite Surface {1} = {1, 2, 3, 4};
+//+
+Recombine Surface {1};
+//+
+Recombine Surface {1};
