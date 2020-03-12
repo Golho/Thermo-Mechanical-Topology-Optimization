@@ -1,6 +1,6 @@
-gmsh = gmshParser('long_quad.msh');
-timeSteps = 10;
-tFinal = 20;
+gmsh = gmshParser('meshes/long_quad.msh');
+timeSteps = 20;
+tFinal = 0.1;
 
 % Create boundary conditions
 prescribed = struct(...
@@ -44,7 +44,7 @@ figure(1)
 colorbar
 [Ex, Ey, ed] = fem.getElemTemp(Elements.QUA_4, 0);
 
-lowerNodes = find(fem.nodeCoordinates(:, 2) <= 0.01);
+lowerNodes = find(abs(fem.nodeCoordinates(:, 2) - 0.5) <= 0.01);
 [~, I] = sort(fem.nodeCoordinates(lowerNodes, 1));
 lowerNodes = lowerNodes(I);
 lowerCoords = fem.nodeCoordinates(lowerNodes, 1);

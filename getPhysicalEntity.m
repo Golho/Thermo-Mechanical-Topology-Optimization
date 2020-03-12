@@ -15,7 +15,7 @@ for pn = gmsh.physicalNames.physicalNames
 end
 
 if ~found
-    error('No entity with the physical name given');
+    error('No entity with the physical name "%s" given', physicalName);
 end
 
 

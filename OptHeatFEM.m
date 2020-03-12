@@ -87,6 +87,46 @@ classdef OptHeatFEM < HeatFEM
                 end
             end
         end
+        
+        function weights = computeMainWeights(obj, radius)
+            % Calculate the center point of each element
+            nbrMainElems = size(obj.mainEnod, 1);
+            elementCoord = zeros(nbrMainElems, 2);
+            for e = 1:nbrMainElems
+                enod = obj.mainEnod(e, 2:end);
+                elementCoord(e, :) = mean(obj.nodeCoordinates(enod, 1:2), 1);
+            end
+            
+            % Calculate the weights
+            distances = radius - pdist2(elementCoord, elementCoord);
+            distances(distances < 0) = 0;
+            weights = sparse(distances);
+            
+            % Normalize so the sum of the weights equal 1
+            weights = weights ./ sum(weights, 2);
+        end
+        
+        function adjoints = solveAdjoint(obj, loads)
+            if obj.transient
+                % Create a matrix as big as the temperatures, but discard
+                % the first column later (corresponding to lambda_N+1 which 
+                % is not of interest
+                adjoints = zeros(size(obj.temperatures));
+                
+                % Reverse the order of the loads and blocked dofs, to fit 
+                % the transient solver
+                loads = fliplr(loads);
+                bds = fliplr(obj.blockedDofs);
+                
+                adjoints = obj.solveTransient(adjoints, loads, bds);
+                
+                % Discard the first column corresponding to lambda_N+1 and
+                % reverse the order of the adjoint column vectors
+                adjoints = fliplr(adjoints(:, 2:end));
+            else
+                error('The steady state adjoint solver is not yet implemented');
+            end
+        end
     end
     methods(Access = protected)
         function [prop] = elementProp(obj, property, elementNbr)

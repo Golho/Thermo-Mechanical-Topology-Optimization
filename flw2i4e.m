@@ -64,7 +64,7 @@ function [Ke,fe]=flw2i4e(ex,ey,ep,D,eq)
 
   for i=1:ngp
     indx=[ 2*i-1; 2*i ];
-    detJ=det(JT(indx,:));
+    detJ=abs(det(JT(indx,:)));
     B = inv(JT(indx, :)) * dNr(indx,:);
     Ke1=Ke1+B'*D*B*detJ*wp(i);
   end

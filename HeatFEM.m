@@ -47,6 +47,8 @@ classdef HeatFEM < handle
         fl % Neumann load vector
         fv % Volume load vector
         
+        % A cell array of size [1 x N] where N is the number of time steps
+        % Entry nbr n represents the blocked degrees of freedom at time t_n
         blockedDofs
         
         transient = 0;
@@ -134,7 +136,12 @@ classdef HeatFEM < handle
         
         function solve(obj)
             if obj.transient
-                obj.solveTransient();
+                % f_bar for n = 1, 2, ..., N
+                weightedLoads = obj.theta*obj.loads(:, 2:end) + ...
+                    (1-obj.theta)*obj.loads(:, 1:end-1);
+
+                obj.temperatures = obj.solveTransient(obj.temperatures, ...
+                    weightedLoads, obj.blockedDofs);
             else
                 obj.temperatures = obj.partitionAndSolve(obj.K, ...
                     obj.loads, obj.temperatures, obj.blockedDofs);
@@ -259,33 +266,38 @@ classdef HeatFEM < handle
             matrix = sparse(matrix);
         end
         
-        function solveTransient(obj)
+        function X = solveTransient(obj, X, F, bds)
             % For each time step, solve the linear transient system AX=Y
-            bd = obj.blockedDofs{1};
+            bd = bds{1};
+            if isempty(bd)
+                freeDofs = 1:obj.nbrDofs;
+            else
+                freeDofs = ~any(1:obj.nbrDofs == bd);
+            end
             A = sparse(obj.A);
-            freeDofs = ~any(1:obj.nbrDofs == bd);
-            %[L,U,P] = lu(A(freeDofs, freeDofs));
+            % Decompose the A-matrix to speed up the linear system solver,
+            % which prevents us from using the partitionAndSolve function
+            % (Works only for linear systems, and for constant Dirichlet
+            % boundary conditions)
             dA = decomposition(A(freeDofs, freeDofs));
             for timeStep = 1:(obj.timeSteps - 1)
-                weightedLoads = obj.theta*obj.loads(:, timeStep+1) + ...
-                    (1-obj.theta)*obj.loads(:, timeStep);
-                Y = obj.B * ...
-                    obj.temperatures(:, timeStep) + ...
-                    weightedLoads;
-                X = obj.temperatures(:, timeStep + 1);
-                bd = obj.blockedDofs{timeStep};
+                Yn = obj.B * X(:, timeStep) + F(:, timeStep);
+                Xn = X(:, timeStep+1);
+                bd = bds{timeStep};
                 
-                freeDofs = ~any(1:length(X) == bd);
-                partY = Y(freeDofs) - ...
+                if isempty(bd)
+                    freeDofs = 1:obj.nbrDofs;
+                else
+                    freeDofs = ~any(1:obj.nbrDofs == bd);
+                end
+                partYn = Yn(freeDofs) - ...
                         A(freeDofs, ~freeDofs)* ...
-                        X(~freeDofs);
+                        Xn(~freeDofs);
                 
-                %y = L\(P*partY);
-                %partX = U\y;
-                partX = dA \ partY;
-                X(freeDofs) = partX;
+                partXn = dA \ partYn;
+                Xn(freeDofs) = partXn;
                 
-                obj.temperatures(:, timeStep + 1) = X;
+                X(:, timeStep + 1) = Xn;
             end
         end
     end
@@ -316,6 +328,8 @@ classdef HeatFEM < handle
         
         function [fe] = elementLoad(ex, ey, elementType, magnitude, thickness)
             switch elementType
+                case Elements.PNT
+                    fe = magnitude*thickness;
                 case Elements.LIN_2
                     fe = hLIN_2f(ex, ey, magnitude, thickness);
                 otherwise

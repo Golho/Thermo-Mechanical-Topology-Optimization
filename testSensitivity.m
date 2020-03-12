@@ -28,7 +28,7 @@ fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(flux);
 fem.addBodyCondition(body);
 
-topOpt = TopOptProblem(fem, Elements.QUA_4);
+topOpt = HeatComplianceProblem(fem, Elements.QUA_4);
 designPar = 0.5*ones(size(fem.mainDensities));
 g(1) = topOpt.objective(designPar)
 
@@ -37,7 +37,7 @@ figure
 elfield2(Ex, Ey, designPar);
 
 % Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-5)
+dgdphi = numGrad(@topOpt.objective, designPar, 1e-6)
 
 % Analytical gradient
-der_g = topOpt.derObjective(designPar)
+der_g = topOpt.gradObjective(designPar)

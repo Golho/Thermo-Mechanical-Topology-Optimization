@@ -1,110 +1,110 @@
-classdef TopOptProblem < handle
-    %UNTITLED2 Summary of this class goes here
+classdef (Abstract) TopOptProblem < handle
+    %UNTITLED Summary of this class goes here
     %   Detailed explanation goes here
     
     properties
         fem
         elementType
+        weights
+        computedWeights = false;
         
-        p_kappa = 1;
-        p_cp = 1;
+        designMin = 0;
+        designMax = 1;
         
-        kappa_1 = 0.001;
-        kappa_2 = 2;
-        cp_1 = 0.001;
-        cp_2 = 2;
+        options = struct(...
+            'p_kappa', [], ...
+            'p_cp', [], ...
+            'filter', [], ...
+            'filterRadius', [], ...
+            'material_1', [], ...
+            'material_2', [] ...
+        );
+    end
+    
+    methods(Abstract)
+        g = objective(obj, designPar)
+        gs = constraints(obj, designPar)
+        
+        dgdphi = gradObjective(obj, designPar)
+        dgsdphi = gradConstraints(obj, designPar)
     end
     
     methods
-        function obj = TopOptProblem(femModel, elementType)
-            %UNTITLED2 Construct an instance of this class
-            %   Detailed explanation goes here
+        function obj = TopOptProblem(femModel, elementType, options)
             obj.fem = femModel;
             obj.elementType = elementType;
             
-            cond = @(phi) obj.kappa_1 + phi^obj.p_kappa*...
-                (obj.kappa_2-obj.kappa_1);
-            cp = @(phi) obj.cp_1 + phi^obj.p_cp*(obj.cp_2 - obj.cp_1);
-            dens = @(phi) 1;
-            obj.fem.addInterpFuncs(cond, cp, dens);
+            % Explicitly state all the struct properties to ensure the
+            % options are valid
+            if ~obj.optionsMatching(options)
+                error('The passed options does not match the required structure. See the abstract class "TopOptProblem" for the correct structure');
+            end
             
+            obj.options = options;
+            
+            kappa_1 = obj.options.material_1.kappa;
+            kappa_2 = obj.options.material_2.kappa;
+            cp_1 = obj.options.material_1.cp;
+            cp_2 = obj.options.material_2.cp;
+            p_kappa = obj.options.p_kappa;
+            p_cp = obj.options.p_cp;
+            
+            cond = @(phi) kappa_1 + phi^p_kappa*...
+                (kappa_2 - kappa_1);
+            cp = @(phi) cp_1 + phi^p_cp*(cp_2 - cp_1);
+            dens = @(phi) 1;
+            
+            obj.fem.addInterpFuncs(cond, cp, dens);
             obj.fem.assemble();
         end
         
-        function g = objective(obj, designPar)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
-            obj.fem.reassemble(designPar);
-            obj.fem.solve();
-            g = 0;
-            deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
-            for n = (obj.fem.timeSteps-1)
-                T_n = obj.fem.temperatures(:, n+1);
-                g = g + 1/obj.fem.tFinal * deltaT *...
-                    T_n'*obj.fem.K*T_n / obj.kappa_2;
+        function [val, gradient] = nlopt_objective(obj, designPar)
+            disp("Calling objective function");
+            val = obj.objective(designPar);
+            if (nargout > 1)
+                gradient = obj.gradObjective(designPar);
             end
         end
         
-        function gs = constraints(obj, designPar)
-            gs(1) = designPar'*obj.fem.mainVolumes / (0.4*sum(obj.fem.mainVolumes)) - 1;
+        function [val, gradient] = nlopt_constraint1(obj, designPar)
+            gs = obj.constraints(designPar);
+            fprintf('Calling constraint(1): %f\n', gs(1));
+            val = gs(1);
+            if (nargout > 1)
+                dgs = obj.gradConstraints(designPar);
+                gradient = dgs(:, 1);
+            end
         end
         
-        function dgdphi = derObjective(obj, designPar)
-            dgdphi = zeros(length(designPar), 1);
-            deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
-            % Adjoint system is solved backward in time
-            adjoints = zeros(obj.fem.nbrDofs, obj.fem.timeSteps-1);
+        % TODO: handle the case when there are more than 1 constraints
+        
+        function match = optionsMatching(obj, options)
+            match = true;
+            for fieldname = fieldnames(obj.options)
+                if ~isfield(options, fieldname)
+                    match = false;
+                    break;
+                end
+            end
+        end
+        
+        function filteredPar = filterParameters(obj, designPar)
+            if ~obj.computedWeights
+                obj.weights = obj.fem.computeMainWeights(obj.options.filterRadius);
+                obj.computedWeights = true;
+            end
             
-            bd = obj.fem.blockedDofs{end};
-            freeDofs = ~any(1:obj.fem.nbrDofs == bd);
-            dA = decomposition(obj.fem.A(freeDofs, freeDofs));
-            B = obj.fem.B;
-            T_n = obj.fem.temperatures(:, end);
-            rest = 2*deltaT/obj.fem.tFinal * obj.fem.K*T_n / obj.kappa_2;
-            for n = (obj.fem.timeSteps-1):-1:1
-                Y = rest;
-                bd = obj.fem.blockedDofs{n+1};
-                freeDofs = ~any(1:obj.fem.nbrDofs == bd);
-                partY = Y(freeDofs);
-                adjoints(freeDofs, n) = dA \ partY;
-                rest = B*adjoints(:, n);
-            end
-            for e = 1:length(designPar)
-                edof = obj.fem.mainEnod(e, :);
-                k0 = obj.fem.getElementBaseMatrix(edof(1), ...
-                    obj.elementType, 'D');
-                c0 = obj.fem.getElementBaseMatrix(edof(1), ...
-                    obj.elementType, 'cp');
-                dkappadphi = obj.p_kappa*designPar(e)^(obj.p_kappa-1)*...
-                    (obj.kappa_2 - obj.kappa_1);
-                dcpdphi = obj.p_cp*designPar(e)^(obj.p_cp-1)*...
-                    (obj.cp_2 - obj.cp_1);
-                for n = 1:(obj.fem.timeSteps-1)
-                    T_ne = obj.fem.temperatures(edof(2:end), n+1);
-                    T_n_1e = obj.fem.temperatures(edof(2:end), n);
-                    adjoint_e = adjoints(edof(2:end), n);
-                    dgdphi(e) = dgdphi(e) + ...
-                        -adjoint_e' * ( ...
-                            ( ...
-                                deltaT*obj.fem.theta*dkappadphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_ne - ...
-                            ( ...
-                                deltaT*(obj.fem.theta-1)*dcpdphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_n_1e ...
-                        );
-                end
-                for n = (obj.fem.timeSteps-1)
-                    T_ne = obj.fem.temperatures(edof(2:end), n+1);
-                    dgdphi(e) = dgdphi(e) + deltaT/obj.fem.tFinal* ...
-                        T_ne'*dkappadphi*k0*T_ne / obj.kappa_2;
-                end
-            end
+            filteredPar = obj.weights * designPar;
         end
         
-        function dgsdphi = derConstraints(obj, designPar)
-            dgsdphi(:, 1) = obj.fem.mainVolumes / (0.4 * sum(obj.fem.mainVolumes));
+        function filteredGrad = filterGradient(obj, grad, designPar)
+            if ~obj.computedWeights
+                obj.weights = obj.fem.computeMainWeights(obj.options.filterRadius);
+                obj.computedWeights = true;
+            end
+            
+            filteredGrad = obj.weights * grad;
+            %filteredGrad = 1./max(designPar, 0.01) .* obj.weights * (designPar.*grad);
         end
     end
 end
