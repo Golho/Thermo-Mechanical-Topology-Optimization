@@ -38,3 +38,6 @@ octave-workspace
 ##########################
 results/*
 logs/*
+
+# Startup file, currently user-specific as it is only used to add the NLOPT-files to the path
+startup.m
