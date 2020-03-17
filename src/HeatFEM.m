@@ -1,4 +1,4 @@
-classdef HeatFEM < handle
+classdef HeatFEM < matlab.mixin.Copyable
     %HEATFEM Summary of this class goes here
     %   Detailed explanation goes here
     

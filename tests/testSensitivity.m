@@ -1,7 +1,8 @@
+clear; close all;
 %%
 gmsh = gmshParser('meshes/square_coarse.msh');
 timeSteps = 50;
-tFinal = 10000;
+tFinal = 1000;
 
 % Create boundary conditions
 prescribed = struct(...
@@ -43,6 +44,7 @@ options = struct(...
     'material_2', material_2 ...
 );
 
+%%
 topOpt = HeatComplianceProblem(fem, Elements.QUA_4, options, 0.4);
 designPar = 0.5*ones(size(fem.mainDensities));
 g(1) = topOpt.objective(designPar)
@@ -53,6 +55,21 @@ elfield2(Ex, Ey, designPar);
 
 % Numerical gradient
 dgdphi = numGrad(@topOpt.objective, designPar, 1e-6)
+
+% Analytical gradient
+der_g = topOpt.gradObjective(designPar)
+
+%%
+topOpt = MaxTemperatureProblem(fem, Elements.QUA_4, options, 0.4);
+designPar = 0.5*ones(size(fem.mainDensities));
+g(1) = topOpt.objective(designPar)
+
+[Ex, Ey, ed] = fem.getElemTemp(fem.timeSteps-1);
+figure
+elfield2(Ex, Ey, ed);
+
+% Numerical gradient
+dgdphi = numGrad(@topOpt.objective, designPar, 1e-7)
 
 % Analytical gradient
 der_g = topOpt.gradObjective(designPar)

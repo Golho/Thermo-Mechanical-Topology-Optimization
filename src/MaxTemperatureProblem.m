@@ -1,10 +1,10 @@
-classdef HeatComplianceProblem < TopOptProblem
+classdef MaxTemperatureProblem < TopOptProblem
     %UNTITLED2 Summary of this class goes here
     %   Detailed explanation goes here
-
+    
 
     methods
-        function obj = HeatComplianceProblem(femModel, elementType, options, volumeFraction, intermediateFunc)
+        function obj = MaxTemperatureProblem(femModel, elementType, options, volumeFraction, intermediateFunc)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin ~= 5
@@ -12,6 +12,7 @@ classdef HeatComplianceProblem < TopOptProblem
             end
             obj = obj@TopOptProblem(femModel, elementType, options, intermediateFunc);
             obj.options.volumeFraction = volumeFraction;
+            obj.options.maxSmoothingPar = 15;
         end
         
         function g = objective(obj, designPar)
@@ -22,16 +23,15 @@ classdef HeatComplianceProblem < TopOptProblem
                 designPar = obj.filterParameters(designPar);
             end
             
-            kappa_2 = obj.options.material_2.kappa;
+            %kappa_2 = obj.options.material_2.kappa;
             obj.fem.reassemble(designPar);
             obj.fem.solve();
-            g = 0;
-            deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
-            for n = (obj.fem.timeSteps-1):-1:1
-                T_n = obj.fem.temperatures(:, n+1);
-                g = g + 1/obj.fem.tFinal * deltaT *...
-                    T_n'*obj.fem.K*T_n / kappa_2;
-            end
+            %g = 0;
+            %deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
+            
+            % Do smooth maximum over time (aggregate row-wise)
+            a = obj.options.maxSmoothingPar;
+            g = obj.smax(obj.smax(obj.fem.temperatures(:, 2:end), a, 1), a, 2);
         end
         
         function gs = constraints(obj, designPar)
@@ -49,24 +49,28 @@ classdef HeatComplianceProblem < TopOptProblem
                 designPar = obj.filterParameters(designPar);
             end
             
-            kappa_2 = obj.options.material_2.kappa;
+            %kappa_2 = obj.options.material_2.kappa;
             dgdphi = zeros(length(designPar), 1);
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
+            
+            a = obj.options.maxSmoothingPar;
 
-            adjointLoads = 2*deltaT/obj.fem.tFinal * ...
-                obj.fem.K*obj.fem.temperatures(:, 2:end) / kappa_2;
+            maxTemp = obj.smax(obj.fem.temperatures(:, 2:end), a, 1);
+            dWdT = obj.gradSmax(obj.fem.temperatures(:, 2:end), a, 1);
+            dWdTmax = obj.gradSmax(maxTemp, a, 2);
+            adjointLoads = dWdTmax .* dWdT;
             % Adjoint system is solved backward in time
             adjoints = obj.fem.solveAdjoint(adjointLoads);
+            
+            k0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(1, 1), ...
+                    obj.elementType, 'D');
+            c0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(1, 1), ...
+                    obj.elementType, 'cp');
 
             for e = 1:length(designPar)
                 edof = obj.fem.mainEnod(e, :);
                 T_e = obj.fem.temperatures(edof(2:end), :);
                 adjoint_e = adjoints(edof(2:end), :);
-                
-                k0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(e, 1), ...
-                    obj.elementType, 'D');
-                c0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(e, 1), ...
-                    obj.elementType, 'cp');
                 
                 
                 dkappadphi = obj.options.p_kappa*designPar(e)^(obj.options.p_kappa-1)*...
@@ -89,11 +93,6 @@ classdef HeatComplianceProblem < TopOptProblem
                             )*T_n_1e ...
                         );
                 end
-                for n = (obj.fem.timeSteps-1):-1:1
-                    T_ne = T_e(:, n+1);
-                    dgdphi(e) = dgdphi(e) + deltaT/obj.fem.tFinal* ...
-                        T_ne'*dkappadphi*k0*T_ne / kappa_2;
-                end
             end
             
             if obj.options.filter
@@ -108,6 +107,21 @@ classdef HeatComplianceProblem < TopOptProblem
             if obj.options.filter
                dgsdphi(:, 1) = obj.filterGradient(dgsdphi(:, 1)); 
             end
+        end
+    end
+    
+    methods(Static)
+        function W = smax(X, a, dim)
+            W = sum(X.*a.^X, dim) ./ sum(a.^X, dim);
+        end
+        
+        function dW = gradSmax(X, a, dim)
+            p = sum(X.*a.^X, dim);
+            q = sum(a.^X, dim);
+            
+            dW = ( ...
+                (1 + X*log(a)).*a.^X.*q - a.^X.*log(a).*p ...
+            ) ./ q.^2;
         end
     end
 end
