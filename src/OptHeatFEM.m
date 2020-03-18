@@ -73,6 +73,7 @@ classdef OptHeatFEM < HeatFEM
         end
         
         function reapplyBodyConditions(obj)
+            % QUESTION: assign the variable "appliedBodies"?
             obj.K = sparse(obj.nbrDofs, obj.nbrDofs);
             obj.Kc = sparse(obj.nbrDofs, obj.nbrDofs);
             obj.M = sparse(obj.nbrDofs, obj.nbrDofs);

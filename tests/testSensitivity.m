@@ -62,6 +62,7 @@ der_g = topOpt.gradObjective(designPar)
 %%
 topOpt = MaxTemperatureProblem(fem, Elements.QUA_4, options, 0.4);
 designPar = 0.5*ones(size(fem.mainDensities));
+topOpt.normalize(designPar);
 g(1) = topOpt.objective(designPar)
 
 [Ex, Ey, ed] = fem.getElemTemp(fem.timeSteps-1);
