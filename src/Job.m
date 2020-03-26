@@ -27,6 +27,10 @@ classdef Job < handle
             
             obj.optimizerAlgorithm = solverOptions.algorithm;
             obj.solverOptions = solverOptions;
+            
+            obj.problem = problem;
+            obj.fem = problem.fem;
+            obj.gmsh = problem.fem.gmsh;
         end
         
         function run(obj)
@@ -63,11 +67,13 @@ classdef Job < handle
             [Ex, Ey, ed] = obj.problem.fem.getElemTemp(obj.problem.fem.timeSteps-1);
 
             figure
+            sgtitle(obj.name);
+            subplot(1, 2, 1);
             title("Optimal density")
             elfield2(Ex, Ey, obj.finalSolution);
             colorbar
 
-            figure
+            subplot(1, 2, 2);
             title("Terminal temperature distribution");
             elfield2(Ex, Ey, ed);
             colorbar

@@ -2,9 +2,9 @@ clear;
 close all;
 jobManager = JobManager();
 %%
-gmsh = gmshParser('meshes/square_01x01_006.msh');
+gmsh = gmshParser('meshes/square_01x01.msh');
 timeSteps = 50;
-tFinal = 500;
+tFinal = 2000;
 volumeFraction = 0.2;
 
 % Create boundary conditions
@@ -28,13 +28,6 @@ body = struct(...
     'physicalName', 'solid' ...
 );
 
-fem = OptHeatFEM(gmsh, tFinal, timeSteps);
-fem.addBoundaryCondition(prescribed);
-fem.addBoundaryCondition(flux);
-fem.addBodyCondition(body);
-
-fem.setMaterial(struct('D', 10*eye(2), 'density', 1, 'heatCapacity', 1e6), 0.001);
-
 material_1 = struct('kappa', 0.1, 'cp', 5e5);
 material_2 = struct('kappa', 10, 'cp',  1e6);
 
@@ -46,9 +39,6 @@ options = struct(...
     'material_1', material_1, ...
     'material_2', material_2 ...
 );
-
-fem.assemble();
-initial = volumeFraction*ones(size(fem.mainDensities));
 
 % tempFig = figure(1);
 % colorbar
@@ -62,13 +52,32 @@ opt.maxtime = 5*60;
 opt.verbose = 1;
 opt.ftol_rel = 1e-6;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
-opt.algorithm = NLOPT_LD_MMA;
 %%
-topOpt_1 = MaxTemperatureProblem(fem, Elements.QUA_4, options, volumeFraction);
-topOpt_1.normalize(initial);
+opt.algorithm = NLOPT_LD_MMA;
+for tFinal = [100, 200, 500, 2000, 6000, 10000]
+    fem = OptHeatFEM(gmsh, tFinal, timeSteps);
+    fem.addBoundaryCondition(prescribed);
+    fem.addBoundaryCondition(flux);
+    fem.addBodyCondition(body);
 
-job = Job(topOpt_1, initial, opt);
-jobManager.add(job);
+    fem.setMaterial(struct('D', 10*eye(2), 'density', 1, 'heatCapacity', 1e6), 0.001);
+    
+    fem.assemble();
+    initial = volumeFraction*ones(size(fem.mainDensities));
+    
+    for kappa = [2, 3]
+        for cp = [2, 3]
+            options.p_kappa = kappa;
+            options.p_cp = cp;
+
+            topOpt_1 = MaxTemperatureProblem(copy(fem), Elements.QUA_4, options, volumeFraction);
+            topOpt_1.normalize(initial);
+
+            job = Job(topOpt_1, initial, opt);
+            jobManager.add(job);
+        end
+    end
+end
 %%
 jobManager.runAll();
 %%
