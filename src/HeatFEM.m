@@ -258,13 +258,21 @@ classdef HeatFEM < matlab.mixin.Copyable
         end
         
         function [matrix] = integrate(obj, elementBlocks, func, dim)
+            numMatrixElements = 0;
+            for block = elementBlocks
+                numNodes = block.elementType.numNodes*block.numElementsInBlock;
+                numMatrixElements = numMatrixElements + numNodes;
+            end
+            I = zeros(numMatrixElements, 1);
+            V = zeros(numMatrixElements, 1);
             if dim == 1
-                matrix = zeros(obj.nbrDofs, 1);
+                J = 1;
             elseif dim == 2
-                matrix = zeros(obj.nbrDofs, obj.nbrDofs);
+                J = zeros(numMatrixElements, 1);
             else
                 error('The input "dim" must be either 1 or 2');
             end
+            counter = 1;
             for block = elementBlocks
                 for element = block.elements
                     ex = obj.nodeCoordinates(element.nodeTags, 1);
@@ -272,13 +280,31 @@ classdef HeatFEM < matlab.mixin.Copyable
                     edof = obj.Dofs(element.nodeTags);
                     elemMatrix = func(ex, ey, block.elementType);
                     if dim == 1
-                        matrix(edof) = matrix(edof) + elemMatrix;
+                        for i = 1:length(edof)
+                            ii = edof(i);
+                            I(counter) = ii;
+                            V(counter) = elemMatrix(i);
+                            counter = counter + 1;
+                        end
                     elseif dim == 2
-                        matrix(edof, edof) = matrix(edof, edof) + elemMatrix;
+                        for i = 1:length(edof)
+                            ii = edof(i);
+                            for j = 1:length(edof)
+                                jj = edof(j);
+                                I(counter) = ii;
+                                J(counter) = jj;
+                                V(counter) = elemMatrix(i, j);
+                                counter = counter + 1;
+                            end
+                        end
                     end
                 end
             end
-            matrix = sparse(matrix);
+            if dim == 1
+                matrix = sparse(I(1:counter-1), J(1:counter-1), V(1:counter-1), obj.nbrDofs, 1);
+            elseif dim == 2
+                matrix = sparse(I(1:counter-1), J(1:counter-1), V(1:counter-1), obj.nbrDofs, obj.nbrDofs);
+            end
         end
         
         function X = solveTransient(obj, X, F, bds)

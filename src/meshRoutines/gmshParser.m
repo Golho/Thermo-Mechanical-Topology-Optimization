@@ -99,7 +99,7 @@ while ~feof(fid)
         case '$Nodes'
             msh.nodes = readNodes(fid);
         case '$Elements'
-            msh.elements = readElements(fid, msh.elementTypes);
+            msh.elements = readElements(fid);
     end
     tline = fgetl(fid);
 end
@@ -268,7 +268,7 @@ function [nodes] = readNodes(fid)
     flushBlock(fid, '$EndNodes');
 end
 
-function [elements] = readElements(fid, elementTypes)
+function [elements] = readElements(fid)
     metaData = fscanf(fid, '%f', 4); % <numEntityBlocks> <numElements> <minElementTag> <maxElementTag>
     
     elements.numEntityBlocks = metaData(1);
@@ -278,8 +278,8 @@ function [elements] = readElements(fid, elementTypes)
     
     for iEntity = 1:elements.numEntityBlocks
         entityData = fscanf(fid, '%d', 4); % <entityDim> <entityTag> <elementType> <numNodesInBlock>
-        
-        numNodes = elementTypes{entityData(3)}{1};
+        elementType = Elements.getEnum(entityData(3));
+        numNodes = elementType.numNodes;
          % transpose elements as fscanf inserts in column order
         elementDataMatrix = fscanf(fid, '%f', [1+numNodes entityData(4)])'; % <elementTag> <nodeTag> ... 
         
@@ -292,7 +292,7 @@ function [elements] = readElements(fid, elementTypes)
         elements.entityBlocks(iEntity) = struct( ...
             'entityDim', entityData(1), ...
             'entityTag', entityData(2), ...
-            'elementType', entityData(3), ...
+            'elementType', elementType, ...
             'numElementsInBlock', entityData(4), ...
             'elements', elems ...
         );
