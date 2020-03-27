@@ -337,8 +337,24 @@ function get_number_nodes(gmsh::Gmsh)
     return number_nodes
 end
 
+function get_element_type(gmsh::Gmsh, physical_name::AbstractString)
+    blocks = get_physical_element_blocks(gmsh, physical_name)
+    first_type = blocks[1].element_type
+    @assert all(block -> block.element_type == first_type, blocks)
+    return first_type
+end
+
+function get_elements(gmsh::Gmsh, physical_name::AbstractString)
+    blocks = get_physical_element_blocks(gmsh, physical_name)
+    return blocks_to_Enod(blocks)
+end
+
 function get_elements(gmsh::Gmsh, element_type::ElementType)
     blocks = filter(block -> block.element_type == element_type, gmsh.element_blocks)
+    return blocks_to_Enod(blocks)
+end
+
+function blocks_to_Enod(blocks::AbstractArray{ElementBlock})
     Enod = Array{Array{Float64}, 1}(undef, 0)
 
     function concat_elements(element_block)

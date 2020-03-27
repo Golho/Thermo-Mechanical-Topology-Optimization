@@ -6,31 +6,34 @@ using LinearAlgebra
 
 g = parse_mesh("../meshes/square_01x01_005.msh")
 
-time_steps = 100
-t_final = 0.001
+@time begin
+node_coordinates = get_global_coordinates(g)
+
+const time_steps = 100
+const t_final = 0.001
 const DUMP = false
 
 prescribed = BoundaryCondition(
-    "Dirichlet", "outlet", 0, 1:time_steps)
+    g, "Dirichlet", "outlet", 0.0, 1:time_steps)
 
-flux = BoundaryCondition("Neumann", "inlet",
+flux = BoundaryCondition(g, "Neumann", "inlet",
     0.1/0.001, 1:time_steps)
 
-body = BodyCondition("main", "solid")
+body = BodyCondition(g, "main", "solid")
 
 material = Material(0.001, 1, 1, 1*Matrix(I, 2, 2))
 
-fem = HeatFEM(g, t_final, time_steps)
+fem = HeatFEM(node_coordinates, t_final, time_steps)
 fem.material = material
 push!(fem.boundary_conditions, prescribed)
 push!(fem.boundary_conditions, flux)
 push!(fem.body_conditions, body)
-
 # Apply conditions (assemble)
+end
 
-apply_body_conditions!(fem)
+@time apply_body_conditions!(fem)
 @time apply_boundary_conditions!(fem)
-solve!(fem)
+@time solve!(fem)
 
 if DUMP
     pvd = paraview_collection("result/my_pvd_file")

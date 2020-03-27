@@ -1,73 +1,62 @@
 include("GlobalAssembly.jl")
 include("GmshParser.jl")
+include("ElementRoutines.jl")
 
 using SparseArrays
 using LinearAlgebra
-
-function assemble(func, element_blocks, node_coordinates, matrix_size)
-    nbr_dofs = matrix_size[1]
-    g_size = fill(nbr_dofs, length(matrix_size))
-    g = GlobalAssembly(g_size...)
-    for block in element_blocks
-        for element in block.elements
-            node_tags = element.node_tags
-            ex = node_coordinates[node_tags, 1]
-            ey = node_coordinates[node_tags, 2]
-            edof = node_to_dof.(node_tags)
-            element_matrix = func(ex, ey, block.element_type)
-
-            edofs = fill(edof, length(matrix_size))
-            insert!(g, edofs..., element_matrix)
-        end
-    end
-    return g
-end
 
 function node_to_dof(node_nbr)
     node_nbr
 end
 
-function element_stiffness(ex, ey, D, thickness, element_type::ElementType)
-    if element_type == TRI_3
-        return hTRI_3K(ex, ey, D, thickness)
-    elseif element_type == QUA_4
-        return hQUA_4K(ex, ey, D, thickness)
-    else
-        @error "The element stiffness matrix for element type $element_type is not yet implemented"
-    end
-end
+# Dispatch on element type
 
-function element_mass(ex, ey, rho, thickness, element_type::ElementType)
-    if element_type == TRI_3
-        return hTRI_3M(ex, ey, rho, thickness)
-    elseif element_type == QUA_4
-        return hQUA_4M(ex, ey, rho, thickness)
-    else
-        @error "The element mass matrix for element type $element_type is not yet implemented"
-    end
-end
+element_stiffness(::Type{Val{QUA_4}}, ex, ey, D, thickness) =
+    hQUA_4K(ex, ey, D, thickness)
 
-function element_load(ex, ey, magnitude, thickness, element_type::ElementType)
-    if element_type == PNT
-        return magnitude*thickness
-    elseif element_type == LIN_2
-        return hLIN_2f(ex, ey, magnitude, thickness)
-    else
-        @error "The element load matrix for element type $element_type is not yet implemented"
-    end
-end
+element_mass(::Type{Val{QUA_4}}, ex, ey, rho, thickness) =
+    hQUA_4M(ex, ey, rho, thickness)
+
+element_load(::Type{Val{LIN_2}}, ex, ey, load, thickness) =
+    hLIN_2f(ex, ey, load, thickness)
+
+element_load(::Type{Val{PNT}}, ex, ey, load, thickness) =
+    load*thickness
 
 struct BoundaryCondition
-    type            :: AbstractString
-    physical_name   :: AbstractString
+    type            :: String
+    physical_name   :: String
+    element_type    :: ElementType
+    connectivity    :: Matrix{Int}
     value           :: Float64
     time_steps      :: Vector{Int}
 end
 
-struct BodyCondition
-    type            :: AbstractString
-    physical_name   :: AbstractString
+function BoundaryCondition(g::Gmsh, type::AbstractString, physical_name::AbstractString,
+    value::Float64, time_steps::AbstractArray{Int})
+    element_type = get_element_type(g, physical_name)
+    connectivity = get_elements(g, physical_name)
+    return BoundaryCondition(type, physical_name, element_type, connectivity, value, time_steps)
 end
+
+struct BodyCondition
+    type            :: String
+    physical_name   :: String
+    element_type    :: ElementType
+    connectivity    :: Matrix{Int}
+    value           :: Float64
+end
+
+BodyCondition(g::Gmsh, type::AbstractString, physical_name::AbstractString) =
+    BodyCondition(g, type, physical_name, 0.0)
+
+function BodyCondition(g::Gmsh, type::AbstractString, physical_name::AbstractString,
+    value::Float64)
+    element_type = get_element_type(g, physical_name)
+    connectivity = get_elements(g, physical_name)
+    return BodyCondition(type, physical_name, element_type, connectivity, value)
+end
+
 
 struct Material
     thickness       :: Float64
@@ -77,30 +66,27 @@ struct Material
 end
 
 mutable struct HeatFEM
-    gmsh            :: Gmsh
+    node_coordinates:: Matrix{Float64}
     t_final         :: Float64
     time_steps      :: Int
+    theta           :: Float64
     nbr_nodes       :: Int
     nbr_dofs        :: Int
-    theta           :: Float64
-    temperatures    :: Array{Float64, 2}
+    temperatures    :: Matrix{Float64}
     K               :: SparseMatrixCSC{Float64, Int}
     C               :: SparseMatrixCSC{Float64, Int}
-    F               :: Array{Float64, 2}
-    node_coordinates:: Array{Float64, 2}
+    F               :: Matrix{Float64}
     blocked_dofs    :: Vector{Vector{Int}}
     body_conditions :: Vector{BodyCondition}
     boundary_conditions :: Vector{BoundaryCondition}
     material        :: Material
 end
 
-function HeatFEM(gmsh::Gmsh, t_final::Int, time_steps::Int)
-    return HeatFEM(gmsh, convert(Float64, t_final), time_steps)
+function HeatFEM(node_coordinates::Matrix{Float64}, t_final::Int, time_steps::Int)
+    return HeatFEM(node_coordinates, convert(Float64, t_final), time_steps)
 end
 
-function HeatFEM(gmsh::Gmsh, t_final::Float64, time_steps::Int)
-    gmsh = gmsh
-    node_coordinates = get_global_coordinates(gmsh)
+function HeatFEM(node_coordinates::Matrix{Float64}, t_final::Float64, time_steps::Int)
     nbr_nodes = size(node_coordinates, 1)
 
     dofs = node_to_dof.(1:nbr_nodes)
@@ -110,18 +96,17 @@ function HeatFEM(gmsh::Gmsh, t_final::Float64, time_steps::Int)
 
     K = spzeros(nbr_dofs, nbr_dofs)
     C = spzeros(nbr_dofs, nbr_dofs)
-    F = zeros(nbr_dofs, time_steps)
+    F = spzeros(nbr_dofs, time_steps)
 
     blocked_dofs = fill([], time_steps)
     body_conditions = Vector{BodyCondition}(undef, 0)
     boundary_conditions = Vector{BoundaryCondition}(undef, 0)
 
     theta = 1
-
     material = Material(1, 1, 1, Matrix{Float64}(I, 2, 2))
 
-    return HeatFEM(gmsh, t_final, time_steps, nbr_nodes, nbr_dofs, theta,
-        temperatures, K, C, F, node_coordinates, blocked_dofs, body_conditions,
+    return HeatFEM(node_coordinates, t_final, time_steps, theta, nbr_nodes, nbr_dofs,
+        temperatures, K, C, F, blocked_dofs, body_conditions,
         boundary_conditions, material)
 end
 
@@ -147,77 +132,89 @@ end
 function apply_body_conditions!(obj::HeatFEM)
     D = obj.material.thermal_cond
     s = obj.material.density * obj.material.heat_capacity
-    t = obj.material.thickness
+    thickness = obj.material.thickness
 
     K = GlobalAssembly(obj.nbr_dofs, obj.nbr_dofs)
     C = GlobalAssembly(obj.nbr_dofs, obj.nbr_dofs)
     F_v = spzeros(obj.nbr_dofs, obj.time_steps)
     initial_temp = zeros(obj.nbr_dofs, 1)
-    func1(ex, ey, element_type) = element_stiffness(ex, ey, D, t, element_type)
-    func2(ex, ey, element_type) = element_mass(ex, ey, s, t, element_type)
 
     for bc = obj.body_conditions
-        element_blocks = get_physical_element_blocks(obj.gmsh, bc.physical_name)
         if bc.type == "main"
-            K_i = assemble(func1, element_blocks, obj.node_coordinates,
-                (obj.nbr_dofs, obj.nbr_dofs))
-            append!(K, K_i)
+            @time begin
+            for e = 1:size(bc.connectivity, 1)
+                enod = bc.connectivity[e, 2:end]
+                edof = node_to_dof.(enod)
+                ex = obj.node_coordinates[enod, 1]
+                ey = obj.node_coordinates[enod, 2]
+                Ke = element_stiffness(Val{bc.element_type}, ex, ey, D, thickness)
+                Ce = element_mass(Val{bc.element_type}, ex, ey, s, thickness)
 
-            C_i = assemble(func2, element_blocks, obj.node_coordinates,
-                (obj.nbr_dofs, obj.nbr_dofs))
-            append!(C, C_i)
+                insert!(K, edof, edof, Ke)
+                insert!(C, edof, edof, Ce)
+            end
+            end
 
         elseif bc.type == "load"
-            magnitude = bc.value
-            func3(ex, ey, element_type) = element_load(ex, ey, magnitude, t, element_type)
-            F_vi = assemble(func3, element_blocks, obj.node_coordinates,
-                (obj.nbr_dofs, ))
-            F_vi = convert(SparseMatrixCSC, F_vi)
-            F_v[:, bc.time_steps] .+= F_vi
+            load = bc.value
+            f = GlobalAssembly(obj.nbr_dofs)
+            for e = 1:size(bc.connectivity, 1)
+                enod = bc.connectivity[e, 2:end]
+                edof = node_to_dof.(enod)
+                ex = obj.node_coordinates[enod, 1]
+                ey = obj.node_coordinates[enod, 2]
+                fe = element_load(Val{bc.element_type}, ex, ey, load, thickness)
+
+                insert!(f, edof, fe)
+            end
+            F_v[:, bc.time_steps] .+= f
 
         elseif bc.type == "initial"
-            for element_block = element_blocks
-                nodes = element_block.elements.node_tags
-                dofs = node_to_dof.(nodes)
+            for e = 1:size(bc.connectivity, 1)
+                enod = bc.connectivity[e, 2:end]
+                edof = node_to_dof.(enod)
                 initial_temp[dofs] = bc.value
             end
         end
     end
+
     obj.C = C
     obj.K = K
+    obj.F += F_v
     obj.temperatures[:, 1] = initial_temp
 end
 
 function apply_boundary_conditions!(obj::HeatFEM)
     D = obj.material.thermal_cond
     s = obj.material.density * obj.material.heat_capacity
-    t = obj.material.thickness
+    thickness = obj.material.thickness
 
     F = spzeros(obj.nbr_dofs, obj.time_steps)
     for bc = obj.boundary_conditions
-        element_blocks = get_physical_element_blocks(obj.gmsh, bc.physical_name)
         if bc.type == "Neumann"
-            magnitude = bc.value
-            function func(ex, ey, element_type)
-                element_load(ex, ey, magnitude, t, element_type)
+            load = bc.value
+            f = GlobalAssembly(obj.nbr_dofs)
+            for e = 1:size(bc.connectivity, 1)
+                enod = bc.connectivity[e, 2:end]
+                edof = node_to_dof.(enod)
+                ex = obj.node_coordinates[enod, 1]
+                ey = obj.node_coordinates[enod, 2]
+                fe = element_load(Val{bc.element_type}, ex, ey, load, thickness)
+
+                insert!(f, edof, fe)
             end
-            F_i = assemble(func, element_blocks, obj.node_coordinates, (obj.nbr_dofs,))
-            F_i = convert(SparseMatrixCSC, F_i)
-            F[:, bc.time_steps] .+= F_i
+            f = convert(SparseMatrixCSC, f)
+            F[:, bc.time_steps] .+= f
+
         elseif bc.type == "Robin"
             @error "The robin boundary conditions are not yet implemented"
+
         elseif bc.type == "Dirichlet"
-            nodes = Set{Int}()
-            for element_block = element_blocks
-                for element in element_block.elements
-                    push!(nodes, element.node_tags...)
-                end
-            end
-            nodes_array = collect(nodes)
+            nodes = unique(bc.connectivity[:, 2:end])
             for time_step in bc.time_steps
-                append!(obj.blocked_dofs[time_step], nodes_array)
+                append!(obj.blocked_dofs[time_step], nodes)
             end
-            obj.temperatures[nodes_array, bc.time_steps] .= bc.value
+            obj.temperatures[nodes, bc.time_steps] .= bc.value
         end
     end
 
@@ -229,147 +226,4 @@ function solve!(obj::HeatFEM)
     weightedLoads = dt*(obj.theta * obj.F[:, 2:end] + (1 - obj.theta)*obj.F[:, 1:end-1])
     A, B = get_matrices(obj)
     solve_transient!(obj.temperatures, A, B, weightedLoads, obj.blocked_dofs)
-end
-
-function hQUA_4K(ex, ey, D, t; integration_rule = 2)
-    ex = reshape(ex, (4, 1))
-    ey = reshape(ey, (4, 1))
-    if integration_rule == 1
-        g1 = 0
-        w1 = 2
-        # Gauss points
-        gp = [g1, g1]
-        # Weights
-        w = [w1, w1]
-
-    elseif integration_rule == 2
-        g1 = 0.577350269189626
-        g2 = 0
-        w1 = 1
-        w2 = 0.888888888888888
-        # Gauss points
-        gp = [-g1   -g1;
-              g1    -g1;
-              -g1   g1;
-              g1    g1]
-
-        # Weights
-        w = w1*ones(size(gp))
-
-    else
-        @error "The integration rule ($integration_rule) is not yet implemented"
-    end
-
-    wp = w[:, 1] .* w[:, 2]
-
-    xi = gp[:, 1]
-    eta = gp[:, 2]
-
-    nbr_gp = integration_rule^2
-    r2 = 2 * nbr_gp
-
-    dNr = zeros(r2+1, 4)
-    dNr[1:2:r2, 1] = -(1 .- eta)/4
-    dNr[1:2:r2, 3] = (1 .+ eta)/4
-    dNr[2:2:r2, 1] = -(1 .- xi)/4
-    dNr[2:2:r2+1, 3] = (1 .+ xi)/4
-
-    dNr[1:2:r2, 2] = (1 .- eta)/4
-    dNr[1:2:r2, 4] = -(1 .+ eta)/4
-    dNr[2:2:r2, 2] = -(1 .+ xi)/4
-    dNr[2:2:r2+1, 4] = (1 .- xi)/4
-
-    Ke = zeros(4, 4)
-    JT = dNr * [ex ey]
-
-    for i = 1:nbr_gp
-        index = [2*i-1, 2*i]
-        detJ = abs(det(JT[index, :]))
-        B = inv(JT[index, :]) * dNr[index, :]
-        Ke += B' * D * B * detJ * wp[i]
-    end
-
-    return Ke*t
-end
-
-function hQUA_4K(ex, ey, D, t; integration_rule = 2)
-    ex = reshape(ex, (4, 1))
-    ey = reshape(ey, (4, 1))
-    if integration_rule == 1
-        g1 = 0
-        w1 = 2
-        # Gauss points
-        gp = [g1, g1]
-        # Weights
-        w = [w1, w1]
-
-    elseif integration_rule == 2
-        g1 = 1 / sqrt(3)
-        w1 = 1
-        # Gauss points
-        gp = [-g1   -g1;
-              g1    -g1;
-              -g1   g1;
-              g1    g1]
-
-        # Weights
-        w = w1*ones(size(gp))
-
-    else
-        @error "The integration rule ($integration_rule) is not yet implemented"
-    end
-
-    wp = w[:, 1] .* w[:, 2]
-
-    xi = gp[:, 1]
-    eta = gp[:, 2]
-
-    nbr_gp = integration_rule^2
-    r2 = 2 * nbr_gp
-
-    dNr = zeros(r2+1, 4)
-    dNr[1:2:r2, 1] = -(1 .- eta)/4
-    dNr[1:2:r2, 3] = (1 .+ eta)/4
-    dNr[2:2:r2, 1] = -(1 .- xi)/4
-    dNr[2:2:r2+1, 3] = (1 .+ xi)/4
-
-    dNr[1:2:r2, 2] = (1 .- eta)/4
-    dNr[1:2:r2, 4] = -(1 .+ eta)/4
-    dNr[2:2:r2, 2] = -(1 .+ xi)/4
-    dNr[2:2:r2+1, 4] = (1 .- xi)/4
-
-    Ke = zeros(4, 4)
-    JT = dNr * [ex ey]
-
-    for i = 1:nbr_gp
-        index = [2*i-1, 2*i]
-        detJ = abs(det(JT[index, :]))
-        B = inv(JT[index, :]) * dNr[index, :]
-        Ke += B' * D * B * detJ * wp[i]
-    end
-
-    return Ke*t
-end
-
-function hQUA_4M(ex, ey, rho, t)
-    area = abs(ex[3] - ex[1])*abs(ey[3] - ey[1])
-
-    I = [4 2 1 2;
-         2 4 2 1;
-         1 2 4 2;
-         2 1 2 4] * 1/36
-    Me = t * rho * area * I
-    return Me
-end
-
-function hLIN_2f(ex, ey, load_magnitude, t)
-    ex = reshape(ex, 2, 1)
-    ey = reshape(ey, 2, 1)
-
-    L = sqrt((ex[2]-ex[1])^2 + (ey[2]-ey[1])^2)
-
-    I = 1/2 * [1; 1];
-    fe = t * L * load_magnitude * I;
-
-    return fe
 end
