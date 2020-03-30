@@ -183,15 +183,17 @@ classdef HeatFEM < matlab.mixin.Copyable
                     switch bc.type
                         case 'Neumann'
                             magnitude = bc.value;
-                            func = @(ex, ey, elementType) obj.elementLoad(...
+                            func = @(ex, ey, elementType, tag) obj.elementLoad(...
                                 ex, ey, elementType, magnitude, obj.thickness);
+                            startTime = tic;
                             f = obj.integrate(elementBlocks, func, 1);
+                            fprintf("Integrated Neumann BC:\t\t%f secs\n", toc(startTime));
                             obj.fl(:, bc.timeSteps) = ...
                                 obj.fl(:, bc.timeSteps) + ...
                                 repmat(f, [1 length(bc.timeSteps)]);
                         case 'Robin'
                             magnitude = bc.alpha * bc.Tinf;
-                            func = @(ex, ey, elementType) obj.elementLoad(...
+                            func = @(ex, ey, elementType, tag) obj.elementLoad(...
                                 ex, ey, elementType, magnitude, obj.thickness);
                             f = obj.integrate(elementBlocks, func, 1);
                             obj.fc(:, bc.timeSteps) = ...
@@ -199,12 +201,13 @@ classdef HeatFEM < matlab.mixin.Copyable
                                 repmat(f, [1 length(bc.timeSteps)]);
 
                             magnitude = bc.alpha;
-                            func = @(ex, ey, elementType) obj.elementMass(...
+                            func = @(ex, ey, elementType, tag) obj.elementMass(...
                                 ex, ey, elementType, magnitude, obj.thickness);
                             % TODO: handle different Kc at different time steps
                             obj.Kc = obj.Kc + obj.integrate(elementBlocks, func, 2);
 
                         case 'Dirichlet'
+                            startTime = tic;
                             % Extract all the nodes of the element blocks
                             nodes = [];
                             for elementBlock = elementBlocks
@@ -215,6 +218,7 @@ classdef HeatFEM < matlab.mixin.Copyable
                             obj.blockedDofs(bc.timeSteps) = cellfun(addBd, ...
                                 obj.blockedDofs(bc.timeSteps));
                             obj.temperatures(bd, bc.timeSteps) = bc.value;
+                            fprintf("Applied Dirichlet BC:\t\t%f secs\n", toc(startTime));
                     end
                 end
                 obj.appliedBoundaries = 1;
@@ -227,23 +231,26 @@ classdef HeatFEM < matlab.mixin.Copyable
                     elementBlocks = getPhysicalEntity(obj.gmsh, bc.physicalName);
                     switch bc.type
                         case 'main'
-                            func = @(ex, ey, elementType) obj.elementStiffness(...
+                            startTime = tic;
+                            func = @(ex, ey, elementType, tag) obj.elementStiffness(...
                                 ex, ey, elementType, obj.D, obj.thickness);
                             obj.K = obj.K + obj.integrate(elementBlocks, func, 2);
-
+                        
                             magnitude = obj.rho * obj.cp;
-                            func = @(ex, ey, elementType) obj.elementMass(...
+                            func = @(ex, ey, elementType, tag) obj.elementMass(...
                                 ex, ey, elementType, magnitude, obj.thickness);
                             obj.M = obj.M + obj.integrate(elementBlocks, func, 2);
+                            fprintf("Integrated main BC:\t\t\t%f secs\n", toc(startTime));
                         case 'load'
                             magnitude = bc.value;
-                            func = @(ex, ey, elementType) obj.elementLoad(...
+                            func = @(ex, ey, elementType, tag) obj.elementLoad(...
                                 ex, ey, elementType, magnitude, obj.thickness);
                             f = obj.integrate(elementBlocks, func, 1);
                             obj.fv(:, bc.timeSteps) = ...
                                 obj.fv(:, bc.timeSteps) + ...
                                 repmat(f, [1 length(bc.timeSteps)]);
                         case 'initial'
+                            startTime = tic;
                             % Extract all the nodes of the element blocks
                             nodes = [];
                             for elementBlock = elementBlocks
@@ -251,6 +258,7 @@ classdef HeatFEM < matlab.mixin.Copyable
                             end
                             bd = obj.Dofs(unique(nodes));
                             obj.temperatures(bd, 1) = bc.value;
+                            fprintf("Applied initial BC:\t\t%f secs\n", toc(startTime));
                     end
                 end
                 obj.appliedBodies = 1;
@@ -260,7 +268,7 @@ classdef HeatFEM < matlab.mixin.Copyable
         function [matrix] = integrate(obj, elementBlocks, func, dim)
             numMatrixElements = 0;
             for block = elementBlocks
-                numNodes = block.elementType.numNodes*block.numElementsInBlock;
+                numNodes = block.elementType.numNodes^2*block.numElementsInBlock;
                 numMatrixElements = numMatrixElements + numNodes;
             end
             I = zeros(numMatrixElements, 1);
@@ -272,28 +280,26 @@ classdef HeatFEM < matlab.mixin.Copyable
             else
                 error('The input "dim" must be either 1 or 2');
             end
-            counter = 1;
+            counter = 0;
             for block = elementBlocks
                 for element = block.elements
                     ex = obj.nodeCoordinates(element.nodeTags, 1);
                     ey = obj.nodeCoordinates(element.nodeTags, 2);
                     edof = obj.Dofs(element.nodeTags);
-                    elemMatrix = func(ex, ey, block.elementType);
+                    elemMatrix = func(ex, ey, block.elementType, element.elementTag);
                     if dim == 1
-                        for i = 1:length(edof)
-                            ii = edof(i);
-                            I(counter) = ii;
-                            V(counter) = elemMatrix(i);
-                            counter = counter + 1;
-                        end
+                        sumDofs = numel(elemMatrix);
+                        I(counter+(1:sumDofs)) = edof;
+                        V(counter+(1:sumDofs)) = elemMatrix;
+                        counter = counter + sumDofs;
                     elseif dim == 2
-                        for i = 1:length(edof)
-                            ii = edof(i);
-                            for j = 1:length(edof)
-                                jj = edof(j);
-                                I(counter) = ii;
-                                J(counter) = jj;
-                                V(counter) = elemMatrix(i, j);
+                        for j = 1:length(edof)
+                            jj = edof(j);
+                            for i = 1:length(edof)
+                                ii = edof(i);
+                                I(counter+1) = ii;
+                                J(counter+1) = jj;
+                                V(counter+1) = elemMatrix(i, j);
                                 counter = counter + 1;
                             end
                         end
@@ -301,13 +307,14 @@ classdef HeatFEM < matlab.mixin.Copyable
                 end
             end
             if dim == 1
-                matrix = sparse(I(1:counter-1), J(1:counter-1), V(1:counter-1), obj.nbrDofs, 1);
+                matrix = sparse(I(1:counter), J(1:counter), V(1:counter), obj.nbrDofs, 1);
             elseif dim == 2
-                matrix = sparse(I(1:counter-1), J(1:counter-1), V(1:counter-1), obj.nbrDofs, obj.nbrDofs);
+                matrix = sparse(I(1:counter), J(1:counter), V(1:counter), obj.nbrDofs, obj.nbrDofs);
             end
         end
         
         function X = solveTransient(obj, X, F, bds)
+            startTime = tic;
             % For each time step, solve the linear transient system AX=Y
             bd = bds{1};
             if isempty(bd)
@@ -340,6 +347,7 @@ classdef HeatFEM < matlab.mixin.Copyable
                 
                 X(:, timeStep + 1) = Xn;
             end
+            fprintf("Solved transient system:\t%f secs\n", toc(startTime));
         end
     end
     

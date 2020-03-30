@@ -1,83 +1,12 @@
 function msh = gmshParser(filename)
 
 %% Reads a mesh in msh format, version 4.1
-%
-% Usage: 
-% To define all variables m.LINES, M.TRIANGLES, etc 
-% (Warning: This creates a very large structure. Do you really need it?)
-%            m = load_gmsh4('a.msh')
-%
-% To define only certain variables (for example TETS and HEXS)
-%            m = load_gmsh4('a.msh', [ 5 6])
-%
-% To define no variables (i.e. if you prefer to use m.ELE_INFOS(i,2))
-%            m = load_gmsh4('a.msh', -1)
-%            m = load_gmsh4('a.msh', [])
-%
-% Copyright (C) 2007  JP Moitinho de Almeida (moitinho@civil.ist.utl.pt)
-% and  R Lorphevre(r(point)lorphevre(at)ulg(point)ac(point)be)
-%
-% based on load_gmsh.m supplied with gmsh-2.0
-%
-% Structure msh always has the following elements:
-%
-% msh.MIN, msh.MAX - Bounding box
-% msh.nbNod - Number of nodes
-% msh.nbElm - Total number of elements
-% msh.nbType(i) - Number of elements of type i (i in 1:19)
-% msh.POS(i,j) - j'th coordinate of node i (j in 1:3, i in 1:msh.nbNod)
-% msh.ELE_INFOS(i,1) - id of element i (i in 1:msh.nbElm)
-% msh.ELE_INFOS(i,2) - type of element i
-% msh.ELE_INFOS(i,3) - number of tags for element i
-% msh.ELE_INFOS(i,4) - Dimension (0D, 1D, 2D or 3D) of element i
-% msh.ELE_TAGS(i,j) - Tags of element i (j in 1:msh.ELE_INFOS(i,3))
-% msh.ELE_NODES(i,j) - Nodes of element i (j in 1:k, with
-%                       k = msh.NODES_PER_TYPE_OF_ELEMENT(msh.ELE_INFOS(i,2)))
-%
-% These elements are created if requested:
-%
-% msh.nbLines - number of 2 node lines
-% msh.LINES(i,1:2) - nodes of line i
-% msh.LINES(i,3) - tag (WHICH ?????) of line i
-%
-% msh.nbTriangles - number of 2 node triangles
-% msh.TRIANGLES(i,1:3) - nodes of triangle i
-% msh.TRIANGLES(i,4) - tag (WHICH ?????) of triangle i
-%
-% Etc
 
-% These definitions need to be updated when new element types are added to gmsh
-%
-% msh.Types{i}{1} Number of an element of type i
-% msh.Types{i}{2} Dimension (0D, 1D, 2D or 3D) of element of type i
-% msh.Types{i}{3} Name to add to the structure with elements of type i
-% msh.Types{i}{4} Name to add to the structure with the number of elements of type i
-%
-
-msh.elementTypes = { ...
-    { 2, 1, 'LIN_2', 'nbLines'}, ... % 1
-    { 3,  2, 'TRI_3', 'nbTriangles'}, ...
-    { 4,  2, 'QUA_4', 'nbQuads'}, ...  
-    { 4,  3, 'TET_4', 'nbTets'}, ...
-    { 8,  3, 'HEX_8', 'nbHexas'}, ... %5
-    { 6,  3, 'PRI_6', 'nbPrisms'}, ...
-    { 5,  3, 'PYR_5', 'nbPyramids'}, ...
-    { 3,  1, 'LIN_3', 'nbLines3'}, ...
-    { 6,  2, 'TRI_6', 'nbTriangles6'}, ...
-    { 9,  2, 'QUA_9', 'nbQuads9'}, ... % 10
-    { 10,  3, 'TET_10', 'nbTets10'}, ...
-    { 27,  3, 'HEX_27', 'nbHexas27'}, ...
-    { 18,  3, 'PRI_18', 'nbPrisms18'}, ...
-    { 14,  3, 'PYR_14', 'nbPyramids14'}, ...
-    { 1,  0, 'PNT', 'nbPoints'}, ... % 15
-    { 8,  3, 'QUA_8', 'nbQuads8'}, ...
-    { 20,  3, 'HEX_20', 'nbHexas20'}, ...
-    { 15,  3, 'PRI_15', 'nbPrisms15'}, ...
-    { 13,  3, 'PYR_13', 'nbPyramids13'}, ...
-};
 % TODO: Add the new element types of GMSH, see 
 % https://gitlab.onelab.info/gmsh/gmsh/blob/master/Common/GmshDefines.h
 % TODO: Add error handling for input parsing in sub functions
+
+startTime = tic;
 
 fid = fopen(filename, 'r');
 
@@ -105,6 +34,9 @@ while ~feof(fid)
 end
 
 fclose(fid);
+elapsed = toc(startTime);
+fprintf("Parsed: %d nodes, %d elements in %f secs\n", msh.nodes.numNodes, ...
+    msh.elements.numElements, elapsed)
 
 end
 

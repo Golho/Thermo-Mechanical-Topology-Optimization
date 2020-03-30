@@ -1,6 +1,6 @@
-gmsh = gmshParser('meshes/square_01x01.msh');
+gmsh = gmshParser('meshes/square_01x01_002.msh');
 timeSteps = 100;
-tFinal = 100;
+tFinal = 0.1;
 
 k = 1;
 cp = 1;
@@ -36,9 +36,7 @@ fem.addBodyCondition(body);
 fem.setMaterial(struct('D', k*eye(2), 'density', rho, 'heatCapacity', cp), 1);
 
 fem.assemble()
-tic
 fem.solve();
-toc
 %% Start the plotting
 % Analytical solution for a semi-infinite body
 q_0 = 10;

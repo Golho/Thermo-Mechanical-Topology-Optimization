@@ -68,22 +68,22 @@ classdef JobManager < handle
         function plotAll(obj)
             
             % Create table for the options of the plots
-            fig = uifigure;
-            fig.Position(3:4) = [1400 360];
-            uit = uitable(fig);
-            uit.Position = [20 20 620 310];
-            tObject = struct2table([obj.jobs.problemConfiguration]);
-            tObject.material_1 = struct2table(tObject.material_1);
-            tObject.material_2 = struct2table(tObject.material_2);
-            uit.Data = tObject;
-            uit.RowName = {obj.jobs.name};
-            uit.ColumnWidth = {50, 40, 40, 60, 'auto', 'auto', 80};
-            
-            uit = uitable(fig);
-            uit.Position = [650 20 500 310];
-            asArray = length(obj.jobs) == 1;
-            tObject = struct2table([obj.jobs.femConfiguration], 'AsArray', asArray);
-            uit.Data = tObject;
+%             fig = uifigure;
+%             fig.Position(3:4) = [1400 360];
+%             uit = uitable(fig);
+%             uit.Position = [20 20 620 310];
+%             tObject = struct2table([obj.jobs.problemConfiguration]);
+%             tObject.material_1 = struct2table(tObject.material_1);
+%             tObject.material_2 = struct2table(tObject.material_2);
+%             uit.Data = tObject;
+%             uit.RowName = {obj.jobs.name};
+%             uit.ColumnWidth = {50, 40, 40, 60, 'auto', 'auto', 80};
+%             
+%             uit = uitable(fig);
+%             uit.Position = [650 20 500 310];
+%             asArray = length(obj.jobs) == 1;
+%             tObject = struct2table([obj.jobs.femConfiguration], 'AsArray', asArray);
+%             uit.Data = tObject;
             
             for job = obj.jobs
                 job.plotResult();

@@ -58,7 +58,7 @@ classdef HeatComplianceProblem < TopOptProblem
             % Adjoint system is solved backward in time
             adjoints = obj.fem.solveAdjoint(adjointLoads);
 
-            for e = 1:length(designPar)
+            parfor e = 1:length(designPar)
                 edof = obj.fem.mainEnod(e, :);
                 T_e = obj.fem.temperatures(edof(2:end), :);
                 adjoint_e = adjoints(edof(2:end), :);

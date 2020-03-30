@@ -81,6 +81,7 @@ classdef OptHeatFEM < HeatFEM
                 elementBlocks = getPhysicalEntity(obj.gmsh, bc.physicalName);
                 switch bc.type
                     case 'main'
+                        startTime = tic;
                         func = @(ex, ey, elementType, elementNbr) obj.elementProp('kappa', elementNbr)*...
                             obj.getElementBaseMatrix(elementNbr, elementType, 'D', ex, ey);
                         obj.K = obj.K + obj.integrate(elementBlocks, func, 2);
@@ -88,26 +89,53 @@ classdef OptHeatFEM < HeatFEM
                         func = @(ex, ey, elementType, elementNbr) obj.elementProp('cp', elementNbr)*...
                             obj.getElementBaseMatrix(elementNbr, elementType, 'cp', ex, ey);
                         obj.M = obj.M + obj.integrate(elementBlocks, func, 2);
+                        fprintf("Reintegrated main BC:\t\t%f secs\n", toc(startTime));
                 end
             end
         end
         
         function weights = computeMainWeights(obj, radius)
+            startTime = tic;
             % Calculate the center point of each element
             nbrMainElems = size(obj.mainEnod, 1);
+            I = zeros(nbrMainElems*10, 1);
+            J = zeros(nbrMainElems*10, 1);
+            V = zeros(nbrMainElems*10, 1);
             elementCoord = zeros(nbrMainElems, 2);
             for e = 1:nbrMainElems
                 enod = obj.mainEnod(e, 2:end);
                 elementCoord(e, :) = mean(obj.nodeCoordinates(enod, 1:2), 1);
             end
-            
             % Calculate the weights
-            distances = radius - pdist2(elementCoord, elementCoord);
-            distances(distances < 0) = 0;
-            weights = sparse(distances);
+            c = 1;
+            for e1 = 1:nbrMainElems
+                c1 = elementCoord(e1, :);
+                I(c) = e1;
+                J(c) = e1;
+                V(c) = radius;
+                c = c + 1;
+                for e2 = 1:(e1-1)
+                    c2 = elementCoord(e2, :);
+                    dx = c1(1) - c2(1);
+                    dy = c1(2) - c2(2);
+                    dist = sqrt(dx^2+dy^2);
+                    if radius - dist > 0
+                        I(c) = e1;
+                        J(c) = e2;
+                        V(c) = radius - dist;
+                        c = c + 1;
+                        I(c) = e2;
+                        J(c) = e1;
+                        V(c) = radius - dist;
+                        c = c + 1;
+                    end
+                end
+            end
+            weights = sparse(I(1:c-1), J(1:c-1), V(1:c-1));
             
             % Normalize so the sum of the weights equal 1
             weights = weights ./ sum(weights, 2);
+            fprintf("Computed weights:\t\t\t%f secs\n", toc(startTime));
         end
         
         function adjoints = solveAdjoint(obj, loads)
@@ -201,31 +229,6 @@ classdef OptHeatFEM < HeatFEM
             if ~hasMain
                 error('Model must have "main" body condition');
             end
-        end
-        
-        function [matrix] = integrate(obj, elementBlocks, func, dim)
-            if dim == 1
-                matrix = zeros(obj.nbrDofs, 1);
-            elseif dim == 2
-                matrix = zeros(obj.nbrDofs, obj.nbrDofs);
-            else
-                error('The input "dim" must be either 1 or 2');
-            end
-            for block = elementBlocks
-                for element = block.elements
-                    ex = obj.nodeCoordinates(element.nodeTags, 1);
-                    ey = obj.nodeCoordinates(element.nodeTags, 2);
-                    edof = obj.Dofs(element.nodeTags);
-                    if dim == 1
-                        elemMatrix = func(ex, ey, block.elementType);
-                        matrix(edof) = matrix(edof) + elemMatrix;
-                    elseif dim == 2
-                        elemMatrix = func(ex, ey, block.elementType, element.elementTag);
-                        matrix(edof, edof) = matrix(edof, edof) + elemMatrix;
-                    end
-                end
-            end
-            matrix = sparse(matrix);
         end
         
         function volumes = computeVolumes(obj, Enod)

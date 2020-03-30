@@ -1,4 +1,4 @@
-function [Ke,fe]=flw2i4e(ex,ey,ep,D,eq)
+function [Ke]=flw2i4e(ex,ey,ep,D)
 % Ke=flw2i4e(ex,ey,ep,D)
 % [Ke,fe]=flw2i4e(ex,ey,ep,D,eq)
 %-------------------------------------------------------------
@@ -27,7 +27,6 @@ function [Ke,fe]=flw2i4e(ex,ey,ep,D,eq)
 %                Lund Institute of Technology
 %-------------------------------------------------------------
   t=ep(1); ir=ep(2); ngp=ir*ir;
-  if nargin==4; eq=0 ; end
 
   if ir==1
     g1=0.0; w1=2.0;
@@ -59,15 +58,16 @@ function [Ke,fe]=flw2i4e(ex,ey,ep,D,eq)
   dNr(2:2:r2+1,3)= (1+xsi)/4;   dNr(2:2:r2+1,4)= (1-xsi)/4;
 
 
-  Ke1=zeros(4,4);  fe1=zeros(4,1);
+  Ke1 = zeros(4,4);
+  B = zeros(2, 4);
   JT=dNr*[ex;ey]';
 
   for i=1:ngp
     indx=[ 2*i-1; 2*i ];
     detJ=abs(det(JT(indx,:)));
-    B = inv(JT(indx, :)) * dNr(indx,:);
+    B = JT(indx, :) \ dNr(indx,:);
     Ke1=Ke1+B'*D*B*detJ*wp(i);
   end
 
-  Ke=Ke1*t;  fe=fe1*t*eq;
+  Ke=Ke1*t;
 %--------------------------end--------------------------------
