@@ -25,7 +25,7 @@ classdef HeatComplianceProblem < TopOptProblem
             obj.fem.reassemble(designPar);
             obj.fem.solve();
             
-            kappa_2 = obj.options.material_2.kappa;
+            kappa_2 = obj.options.material_2.Kappa(1);
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
             KT = deltaT / (obj.fem.tFinal * kappa_2) * ...
                 obj.fem.K * obj.fem.temperatures(:, 2:end);
@@ -38,7 +38,7 @@ classdef HeatComplianceProblem < TopOptProblem
                 designPar = obj.filterParameters(designPar);
             end
             
-            kappa_2 = obj.options.material_2.kappa;
+            kappa_2 = obj.options.material_2.Kappa(1);
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
 
             adjointLoads = 2*deltaT/obj.fem.tFinal * ...
@@ -47,11 +47,11 @@ classdef HeatComplianceProblem < TopOptProblem
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads);
             
-            parfor e = 1:length(designPar)
+            for e = 1:length(designPar)
                 d = designPar(e);
                 dkappadphi = obj.fem.conductivityDer(d);
-                k0 = obj.fem.getMainElementBase(e, 'D');
-                T_e = obj.fem.temperatures(obj.fem.mainEnod(2:end, e), 2:end);
+                k0 = obj.fem.getElementBaseMatrix(e, 'D');
+                T_e = obj.fem.temperatures(obj.fem.Enod(:, e), :);
                 kT = deltaT/obj.fem.tFinal*dkappadphi/kappa_2 * k0*T_e;
                 
                 dgdphi(e) = dgdphi(e) + sum(dot(T_e, kT));
@@ -67,12 +67,12 @@ classdef HeatComplianceProblem < TopOptProblem
             if obj.options.filter
                 designPar = obj.filterParameters(designPar);
             end
-            gs(1) = designPar'*obj.fem.mainVolumes / (obj.options.volumeFraction*sum(obj.fem.mainVolumes)) - 1;
+            gs(1) = dot(designPar, obj.fem.volumes) / (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
         end
         
         function dgsdphi = gradConstraints(obj, designPar)
             designPar = reshape(designPar, [], 1);
-            dgsdphi(:, 1) = obj.fem.mainVolumes / (obj.options.volumeFraction * sum(obj.fem.mainVolumes));
+            dgsdphi(:, 1) = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
             
             if obj.options.filter
                dgsdphi(:, 1) = obj.filterGradient(dgsdphi(:, 1)); 

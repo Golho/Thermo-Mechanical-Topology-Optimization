@@ -15,6 +15,7 @@ classdef StructuredMesh
         NumNodes
         NumElements
         ElementType
+        Dimensions
     end
     
     methods
@@ -54,12 +55,23 @@ classdef StructuredMesh
         end
         
         function type = get.ElementType(obj)
+            switch obj.Dimensions
+                case 3
+                    type = Elements.HEX_8;
+                case 2
+                    type = Elements.QUA_4;
+                case 1
+                    type = Elements.LIN_2;
+            end
+        end
+        
+        function dim = get.Dimensions(obj)
             if obj.Ny > 1 && obj.Nz > 1
-                type = Elements.HEX_8;
+                dim = 3;
             elseif obj.Ny > 1
-                type = Elements.QUA_4;
+                dim = 2;
             else
-                type = Elements.LIN_2;
+                dim = 1;
             end
         end
         
@@ -72,11 +84,13 @@ classdef StructuredMesh
             coord(1, :) = (ix-1) * obj.Lx / (obj.Nx-1);
             coord(2, :) = (iy-1) * obj.Ly / (max(obj.Ny-1, 1));
             coord(3, :) = (iz-1) * obj.Lz / (max(obj.Nz-1, 1));
+
         end
         
         function [Ex, Ey, Ez] = elementCoordinates(obj)
             connectivity = obj.elementNodes(1:obj.NumElements);
             coordinates = obj.coordinates();
+
             x = coordinates(1, :);
             y = coordinates(2, :);
             z = coordinates(3, :);
@@ -111,43 +125,59 @@ classdef StructuredMesh
         end
         
         function [neighbors] = elementNeighbors(obj, elementNbr, radius)
+            [ix, iy, iz] = obj.toCartesian(elementNbr(:), true);
+            
             hx = obj.Lx / (obj.Nx-1);
             dx = ceil(radius / hx);
+            ixRange = max(1, ix - dx):min(obj.Nx-1, ix + dx);
             
             if obj.Ny == 1
-                dy = 0;
+                iyRange = 1;
             else    
                 hy = obj.Ly / (obj.Ny-1);
                 dy = ceil(radius / hy);
+                iyRange = max(1, iy - dy):min(obj.Ny-1, iy + dy);
             end
             if obj.Nz == 1
-                dz = 0;
+                izRange = 1;
             else
                 hz = obj.Lz / (obj.Nz-1);
                 dz = ceil(radius / hz);
+                izRange = max(1, iz - dz):min(obj.Nz-1, iz + dz);
             end
-            
-            
 
-            [ix, iy, iz] = obj.toCartesian(elementNbr(:), true);
-            ixRange = max(1, ix - dx):min(obj.Nx, ix + dx);
-            iyRange = max(1, iy - dy):min(obj.Ny, iy + dy);
-            izRange = max(1, iz - dz):min(obj.Nz, iz + dz);
             neighbors = zeros(length(ixRange)*length(iyRange)*length(izRange), 1);
             c = 1;
             for iix = ixRange
                 for iiy = iyRange
                     for iiz = izRange
-                        neighbors(c) = obj.toLinear(iix, iiy, iiz);
+                        neighbors(c) = obj.toLinear(iix, iiy, iiz, true);
                         c = c + 1;
                     end
                 end
             end
         end
-        function [n] = toLinear(obj, ix, iy, iz)
+
+        function [n] = toLinear(obj, ix, iy, iz, element)
+            if nargin == 5 && element
+                Nx = max(obj.Nx - 1, 1);
+                Ny = max(obj.Ny - 1, 1);
+                Nz = max(obj.Nz - 1, 1);
+            else
+                Nx = obj.Nx;
+                Ny = obj.Ny;
+                Nz = obj.Nz;
+            end
             if nargin < 3
-                iy = 1*ones(size(ix));
-                iz = 1*ones(size(ix));
+                % Allow for the input to be 1 matrix with multiple columns
+                if size(ix, 2) > 1
+                    iy = ix(:, 2);
+                    iz = ix(:, 3);
+                    ix = ix(:, 1);
+                else
+                    iy = 1*ones(size(ix));
+                    iz = 1*ones(size(ix));
+                end
             elseif nargin < 4
                 iz = 1*ones(size(ix));
             end
@@ -161,8 +191,8 @@ classdef StructuredMesh
 %                 "Cartesian indices must be within range");
 
             
-            n = (iz-1) * (obj.Nx * obj.Ny) + ...
-                (iy-1) * (obj.Nx) + ...
+            n = (iz-1) * (Nx * Ny) + ...
+                (iy-1) * (Nx) + ...
                 ix;
         end
         
@@ -182,6 +212,48 @@ classdef StructuredMesh
             iz = ceil(n ./ (Nx * Ny));
             iy = mod(ceil(n ./ Nx)-1, Ny) + 1;
             ix = mod(n-1, Nx)+1;
+            
+            if nargout == 1
+                ix = [ix, iy, iz];
+            end
+        end
+        
+        function weights = elementWeights(obj, radius, weightFunction)
+            middleElement = obj.toLinear(...
+                max(ceil(obj.Nx-1)/2, 1), ...
+                max(ceil(obj.Ny-1)/2, 1), ...
+                max(ceil(obj.Nz-1)/2, 1), true);
+            middleNeighbors = obj.elementNeighbors(middleElement, radius);
+            maxNeighbors = numel(middleNeighbors);
+            
+            ne = obj.NumElements;
+            I = zeros(ne*maxNeighbors, 1);
+            J = zeros(ne*maxNeighbors, 1);
+            V = zeros(ne*maxNeighbors, 1);
+            % Calculate the weights
+            c = 0;
+            for e1 = 1:ne
+                % Get the lower right node of the element to compute
+                % distances
+                elementNode = obj.toLinear(obj.toCartesian(e1, true));
+                coord1 = obj.coordinates(elementNode);
+                neighbors = obj.elementNeighbors(e1, radius);
+                % Get the lower right nodes of the neighbor to compute
+                % distances
+                neighborNodes = obj.toLinear(obj.toCartesian(neighbors, true));
+                coord2s = obj.coordinates(neighborNodes);
+                dx = coord1(1) - coord2s(1, :);
+                dy = coord1(2) - coord2s(2, :);
+                dz = coord1(3) - coord2s(3, :);
+                weights = weightFunction(dx, dy, dz);
+                mask = weights > 0;
+                indices = c + (1:nnz(mask));
+                I(indices) = e1;
+                J(indices) = neighbors(mask);
+                V(indices) = weights(mask);
+                c = c + nnz(mask);
+            end
+            weights = sparse(I(1:c), J(1:c), V(1:c), ne, ne);
         end
     end
 end

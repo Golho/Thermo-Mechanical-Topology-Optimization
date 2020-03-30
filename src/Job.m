@@ -4,15 +4,10 @@ classdef Job < handle
         initialSolution
         problemConfiguration
         femConfiguration
-        optimizerAlgorithm        
-        solverOptions
+        optConf
+        result
 
         problem
-        fem
-        gmsh
-        
-        result
-        finalSolution
     end
     
     methods
@@ -23,27 +18,23 @@ classdef Job < handle
             obj.problem = problem;
             obj.initialSolution = initial;
             obj.problemConfiguration = problem.getConfiguration();
-            obj.femConfiguration = problem.fem.getConfiguration();
+            obj.femConfiguration = problem.fem.configuration;
             
-            obj.optimizerAlgorithm = solverOptions.algorithm;
-            obj.solverOptions = solverOptions;
-            
-            obj.problem = problem;
-            obj.fem = problem.fem;
-            obj.gmsh = problem.fem.gmsh;
+            obj.optConf.solverOptions = solverOptions;
+            obj.optConf.algorithm = solverOptions.algorithm;
         end
         
         function run(obj)
-            obj.solverOptions.min_objective = @(varargin) obj.problem.nlopt_objective(varargin{:});
-            obj.solverOptions.lower_bounds = zeros(size(obj.problem.fem.mainDensities));
-            obj.solverOptions.upper_bounds = ones(size(obj.problem.fem.mainDensities));
-            obj.solverOptions.fc = {@(varargin) obj.problem.nlopt_constraint1(varargin{:})};
+            obj.optConf.solverOptions.min_objective = @(varargin) obj.problem.nlopt_objective(varargin{:});
+            obj.optConf.solverOptions.lower_bounds = zeros(size(obj.problem.fem.designPar));
+            obj.optConf.solverOptions.upper_bounds = ones(size(obj.problem.fem.designPar));
+            obj.optConf.solverOptions.fc = {@(varargin) obj.problem.nlopt_constraint1(varargin{:})};
             
             tic;
-            [optDesign, fmin, returnCode] = nlopt_optimize(obj.solverOptions, obj.initialSolution);
+            [optDesign, fmin, returnCode] = nlopt_optimize(obj.optConf.solverOptions, obj.initialSolution);
             duration = toc;
 
-            obj.finalSolution = optDesign;
+            obj.result.finalSolution = optDesign;
             obj.result.fmin = fmin;
             obj.result.returnCode = returnCode;
             obj.result.solverTime = duration;
@@ -55,22 +46,52 @@ classdef Job < handle
             if nargin < 2
                 folderPath = '';
             end
-            [Ex, Ey] = obj.problem.fem.getMainElemTemp(0);
-            saveMatrix = [Ex; Ey; obj.finalSolution'];
-            jobNameMat = [folderPath, obj.name, '.mat'];
-            jobNameTxt = [folderPath, obj.name, '.txt'];
-            save(jobNameMat, 'obj');
+            
+            Ex = obj.problem.fem.Ex;
+            Ey = obj.problem.fem.Ey;
+            Ez = obj.problem.fem.Ey;
+               
+            saveMatrix = [Ex; Ey; Ez; obj.result.finalSolution'];
+            pathPrefix = [folderPath, obj.name];
+            jobNameMat = [pathPrefix, '.mat'];
+            jobNameTxt = [pathPrefix, '.txt'];
+            
+            for t = 1:obj.problem.fem.timeSteps
+                obj.problem.fem.saveNodeField(pathPrefix + "temperatures" + t, ...
+                    obj.problem.fem.temperatures(:, t), "temperatures");
+            end
+            unfilteredDesign = obj.result.finalSolution;
+            filteredDesign = obj.problem.filterParameters(unfilteredDesign);
+            obj.problem.fem.saveElementField(pathPrefix + "designFiltered", ...
+                filteredDesign, "designFiltered");
+            obj.problem.fem.saveElementField(pathPrefix + "designUnfiltered", ...
+                unfilteredDesign, "designUnfiltered");
             save(jobNameTxt, 'saveMatrix', '-ascii','-double');
+            saveObj = struct(...
+                "name", obj.name, ...
+                "initialDesign", obj.initialSolution, ...
+                "problemConfiguration", obj.problemConfiguration, ...
+                "femConfiguration", obj.femConfiguration, ...
+                "optimizerConfiguration", obj.optConf, ...
+                "result", obj.result ...
+                );
+            save(jobNameMat, 'saveObj');
         end
         
         function plotResult(obj)
-            [Ex, Ey, ed] = obj.problem.fem.getMainElemTemp(obj.problem.fem.timeSteps-1);
-
+            if obj.problem.fem.spatialDimensions == 3
+                warning("The field variable in 3D is not displayable in Matlab");
+                return
+            end
+            ed = obj.problem.fem.getElemTemp(obj.problem.fem.timeSteps-1);
+            Ex = obj.problem.fem.Ex;
+            Ey = obj.problem.fem.Ey;
+               
             figure
             sgtitle(obj.name);
             subplot(1, 2, 1);
             title("Optimal density")
-            elfield2(Ex, Ey, obj.finalSolution);
+            elfield2(Ex, Ey, obj.result.finalSolution);
             colorbar
 
             subplot(1, 2, 2);

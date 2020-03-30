@@ -15,6 +15,7 @@ classdef (Abstract) TopOptProblem < handle
             'p_cp', [], ...
             'filter', [], ...
             'filterRadius', [], ...
+            'filterWeightFunction', [], ...
             'material_1', [], ...
             'material_2', [] ...
         );
@@ -33,23 +34,18 @@ classdef (Abstract) TopOptProblem < handle
     methods
         function obj = TopOptProblem(femModel, options, intermediateFunc)
             obj.fem = femModel;
-            
-            if nargin == 4
+
+            if nargin == 5
                 obj.intermediateFunc = intermediateFunc;
             end
             
-            % Explicitly state all the struct properties to ensure the
-            % options are valid
-            if ~obj.optionsMatching(options)
-                error('The passed options does not match the required structure. See the abstract class "TopOptProblem" for the correct structure');
-            end
+            % Use indexing of obj.options to force similar structures
+            obj.options(1) = options;
             
-            obj.options = options;
-            
-            kappa_1 = obj.options.material_1.kappa;
-            kappa_2 = obj.options.material_2.kappa;
-            cp_1 = obj.options.material_1.cp;
-            cp_2 = obj.options.material_2.cp;
+            kappa_1 = obj.options.material_1.Kappa(1);
+            kappa_2 = obj.options.material_2.Kappa(1);
+            cp_1 = obj.options.material_1.heatCapacity;
+            cp_2 = obj.options.material_2.heatCapacity;
             p_kappa = obj.options.p_kappa;
             p_cp = obj.options.p_cp;
             
@@ -88,23 +84,15 @@ classdef (Abstract) TopOptProblem < handle
         
         % TODO: handle the case when there are more than 1 constraints
         
-        function match = optionsMatching(obj, options)
-            match = true;
-            for fieldname = fieldnames(obj.options)
-                if ~isfield(options, fieldname)
-                    match = false;
-                    break;
-                end
-            end
-        end
-        
         function conf = getConfiguration(obj)
             conf = obj.options;
         end
         
         function filteredPar = filterParameters(obj, designPar)
             if ~obj.computedWeights
-                obj.weights = obj.fem.computeMainWeights(obj.options.filterRadius);
+                obj.weights = obj.fem.computeWeights(...
+                    obj.options.filterRadius, ...
+                    obj.options.filterWeightFunction);
                 obj.computedWeights = true;
             end
             
@@ -113,7 +101,9 @@ classdef (Abstract) TopOptProblem < handle
         
         function filteredGrad = filterGradient(obj, grad, designPar)
             if ~obj.computedWeights
-                obj.weights = obj.fem.computeMainWeights(obj.options.filterRadius);
+                obj.weights = obj.fem.computeWeights(...
+                    obj.options.filterRadius, ...
+                    obj.options.filterWeightFunction);
                 obj.computedWeights = true;
             end
             

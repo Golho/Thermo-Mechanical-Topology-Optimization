@@ -63,7 +63,7 @@ classdef MaxTemperatureProblem < TopOptProblem
                 designPar = obj.filterParameters(designPar);
             end
             designPar = reshape(designPar, [], 1);
-            gs(1) = designPar'*obj.fem.mainVolumes / (obj.options.volumeFraction*sum(obj.fem.mainVolumes)) - 1;
+            gs(1) = designPar'*obj.fem.volumes / (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
         end
         
         function dgdphi = gradObjective(obj, designPar)
@@ -92,7 +92,7 @@ classdef MaxTemperatureProblem < TopOptProblem
         
         function dgsdphi = gradConstraints(obj, designPar)
             designPar = reshape(designPar, [], 1);
-            dgsdphi(:, 1) = obj.fem.mainVolumes / (obj.options.volumeFraction * sum(obj.fem.mainVolumes));
+            dgsdphi(:, 1) = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
             
             if obj.options.filter
                dgsdphi(:, 1) = obj.filterGradient(dgsdphi(:, 1)); 
