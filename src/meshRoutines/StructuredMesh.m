@@ -39,7 +39,6 @@ classdef StructuredMesh
                 obj.Nz = 1;
                 obj.Lz = 0;
             end
-            
             fprintf("Created a structured mesh (%d nodes, %d elements)\n", ...
                 obj.NumNodes, obj.NumElements);
         end
@@ -145,7 +144,6 @@ classdef StructuredMesh
                 end
             end
         end
-
         function [n] = toLinear(obj, ix, iy, iz)
             if nargin < 3
                 iy = 1*ones(size(ix));
@@ -161,6 +159,7 @@ classdef StructuredMesh
 %             zInRange = all(iz > 0 & iz <= obj.Nz, 'all');
 %             assert(xInRange && yInRange && zInRange, ...
 %                 "Cartesian indices must be within range");
+
             
             n = (iz-1) * (obj.Nx * obj.Ny) + ...
                 (iy-1) * (obj.Nx) + ...
@@ -179,6 +178,7 @@ classdef StructuredMesh
             end
             % Comment out the assertions, as they are time-consuming
 %             assert(all(n >= 1 & n <= obj.NumNodes, 'all'), "Index must be within range");
+
             iz = ceil(n ./ (Nx * Ny));
             iy = mod(ceil(n ./ Nx)-1, Ny) + 1;
             ix = mod(n-1, Nx)+1;
