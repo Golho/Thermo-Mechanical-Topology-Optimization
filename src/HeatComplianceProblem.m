@@ -4,13 +4,13 @@ classdef HeatComplianceProblem < TopOptProblem
 
 
     methods
-        function obj = HeatComplianceProblem(femModel, elementType, options, volumeFraction, intermediateFunc)
+        function obj = HeatComplianceProblem(femModel, options, volumeFraction, intermediateFunc)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin ~= 5
                 intermediateFunc = [];
             end
-            obj = obj@TopOptProblem(femModel, elementType, options, intermediateFunc);
+            obj = obj@TopOptProblem(femModel, options, intermediateFunc);
             obj.options.volumeFraction = volumeFraction;
         end
         
@@ -22,25 +22,14 @@ classdef HeatComplianceProblem < TopOptProblem
                 designPar = obj.filterParameters(designPar);
             end
             
-            kappa_2 = obj.options.material_2.kappa;
             obj.fem.reassemble(designPar);
             obj.fem.solve();
-            g = 0;
+            
+            kappa_2 = obj.options.material_2.kappa;
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
-            for n = (obj.fem.timeSteps-1):-1:1
-                T_n = obj.fem.temperatures(:, n+1);
-                g = g + 1/obj.fem.tFinal * deltaT *...
-                    T_n'*obj.fem.K*T_n / kappa_2;
-            end
-        end
-        
-        function gs = constraints(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            if obj.options.filter
-                designPar = obj.filterParameters(designPar);
-            end
-            designPar = reshape(designPar, [], 1);
-            gs(1) = designPar'*obj.fem.mainVolumes / (obj.options.volumeFraction*sum(obj.fem.mainVolumes)) - 1;
+            KT = deltaT / (obj.fem.tFinal * kappa_2) * ...
+                obj.fem.K * obj.fem.temperatures(:, 2:end);
+            g = sum(dot(obj.fem.temperatures(:, 2:end), KT));
         end
         
         function dgdphi = gradObjective(obj, designPar)
@@ -50,55 +39,35 @@ classdef HeatComplianceProblem < TopOptProblem
             end
             
             kappa_2 = obj.options.material_2.kappa;
-            dgdphi = zeros(length(designPar), 1);
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
 
             adjointLoads = 2*deltaT/obj.fem.tFinal * ...
                 obj.fem.K*obj.fem.temperatures(:, 2:end) / kappa_2;
             % Adjoint system is solved backward in time
-            adjoints = obj.fem.solveAdjoint(adjointLoads);
-
+            
+            dgdphi = obj.fem.gradChainTerm(adjointLoads);
+            
             parfor e = 1:length(designPar)
-                edof = obj.fem.mainEnod(e, :);
-                T_e = obj.fem.temperatures(edof(2:end), :);
-                adjoint_e = adjoints(edof(2:end), :);
+                d = designPar(e);
+                dkappadphi = obj.fem.conductivityDer(d);
+                k0 = obj.fem.getMainElementBase(e, 'D');
+                T_e = obj.fem.temperatures(obj.fem.mainEnod(2:end, e), 2:end);
+                kT = deltaT/obj.fem.tFinal*dkappadphi/kappa_2 * k0*T_e;
                 
-                k0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(e, 1), ...
-                    obj.elementType, 'D');
-                c0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(e, 1), ...
-                    obj.elementType, 'cp');
-                
-                
-                dkappadphi = obj.options.p_kappa*designPar(e)^(obj.options.p_kappa-1)*...
-                    (obj.options.material_2.kappa - obj.options.material_1.kappa);
-                dcpdphi = obj.options.p_cp*designPar(e)^(obj.options.p_cp-1)*...
-                    (obj.options.material_2.cp - obj.options.material_1.cp);
-                for n = 1:(obj.fem.timeSteps-1)
-                    T_ne = T_e(:, n+1);
-                    T_n_1e = T_e(:, n);
-                    adjoint_ne = adjoint_e(:, n);
-                    dgdphi(e) = dgdphi(e) + ...
-                        -adjoint_ne' * ( ...
-                            ( ...
-                                deltaT*obj.fem.theta*dkappadphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_ne - ...
-                            ( ...
-                                deltaT*(obj.fem.theta-1)*dcpdphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_n_1e ...
-                        );
-                end
-                for n = (obj.fem.timeSteps-1):-1:1
-                    T_ne = T_e(:, n+1);
-                    dgdphi(e) = dgdphi(e) + deltaT/obj.fem.tFinal* ...
-                        T_ne'*dkappadphi*k0*T_ne / kappa_2;
-                end
+                dgdphi(e) = dgdphi(e) + sum(dot(T_e, kT));
             end
             
             if obj.options.filter
                 dgdphi = obj.filterGradient(dgdphi);
             end
+        end
+        
+        function gs = constraints(obj, designPar)
+            designPar = reshape(designPar, [], 1);
+            if obj.options.filter
+                designPar = obj.filterParameters(designPar);
+            end
+            gs(1) = designPar'*obj.fem.mainVolumes / (obj.options.volumeFraction*sum(obj.fem.mainVolumes)) - 1;
         end
         
         function dgsdphi = gradConstraints(obj, designPar)

@@ -1,11 +1,11 @@
 function [nodeCoordinates] = getGlobalCoordinates(gmshData)
 %GETGLOBALNODES Summary of this function goes here
 %   Detailed explanation goes here
-nodeCoordinates = zeros(gmshData.nodes.numNodes, 3);
+nodeCoordinates = zeros(3, gmshData.nodes.numNodes);
 for entityBlock = gmshData.nodes.entityBlocks
-    nodeCoordinates(entityBlock.nodeTags, 1) = entityBlock.x;
-    nodeCoordinates(entityBlock.nodeTags, 2) = entityBlock.y;
-    nodeCoordinates(entityBlock.nodeTags, 3) = entityBlock.z;
+    nodeCoordinates(1, entityBlock.nodeTags) = entityBlock.x;
+    nodeCoordinates(2, entityBlock.nodeTags) = entityBlock.y;
+    nodeCoordinates(3, entityBlock.nodeTags) = entityBlock.z;
 end
 end
 

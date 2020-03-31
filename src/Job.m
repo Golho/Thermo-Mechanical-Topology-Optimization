@@ -55,8 +55,8 @@ classdef Job < handle
             if nargin < 2
                 folderPath = '';
             end
-            [Ex, Ey] = obj.problem.fem.getElemTemp(0);
-            saveMatrix = [Ex, Ey, obj.finalSolution];
+            [Ex, Ey] = obj.problem.fem.getMainElemTemp(0);
+            saveMatrix = [Ex; Ey; obj.finalSolution'];
             jobNameMat = [folderPath, obj.name, '.mat'];
             jobNameTxt = [folderPath, obj.name, '.txt'];
             save(jobNameMat, 'obj');
@@ -64,7 +64,7 @@ classdef Job < handle
         end
         
         function plotResult(obj)
-            [Ex, Ey, ed] = obj.problem.fem.getElemTemp(obj.problem.fem.timeSteps-1);
+            [Ex, Ey, ed] = obj.problem.fem.getMainElemTemp(obj.problem.fem.timeSteps-1);
 
             figure
             sgtitle(obj.name);

@@ -26,7 +26,9 @@ function [Ke]=flw2i4e(ex,ey,ep,D)
 %                Department of Solid Mechanics.
 %                Lund Institute of Technology
 %-------------------------------------------------------------
-  t=ep(1); ir=ep(2); ngp=ir*ir;
+ex = reshape(ex, [], 1);
+ey = reshape(ey, [], 1);
+t=ep(1); ir=ep(2); ngp=ir*ir;
 
   if ir==1
     g1=0.0; w1=2.0;
@@ -52,22 +54,22 @@ function [Ke]=flw2i4e(ex,ey,ep,D)
   xsi=gp(:,1);  eta=gp(:,2);  r2=ngp*2;
 
 
-  dNr(1:2:r2,1)=-(1-eta)/4;     dNr(1:2:r2,2)= (1-eta)/4;
-  dNr(1:2:r2,3)= (1+eta)/4;     dNr(1:2:r2,4)=-(1+eta)/4;
-  dNr(2:2:r2+1,1)=-(1-xsi)/4;   dNr(2:2:r2+1,2)=-(1+xsi)/4;
-  dNr(2:2:r2+1,3)= (1+xsi)/4;   dNr(2:2:r2+1,4)= (1-xsi)/4;
+  dNr(1:2:r2,1) = -(1-eta)/4;     dNr(1:2:r2,2) = (1-eta)/4;
+  dNr(1:2:r2,3) = (1+eta)/4;      dNr(1:2:r2,4) = -(1+eta)/4;
+  dNr(2:2:r2+1,1) = -(1-xsi)/4;   dNr(2:2:r2+1,2) = -(1+xsi)/4;
+  dNr(2:2:r2+1,3) = (1+xsi)/4;    dNr(2:2:r2+1,4) = (1-xsi)/4;
 
 
   Ke1 = zeros(4,4);
   B = zeros(2, 4);
-  JT=dNr*[ex;ey]';
+  JT = dNr*[ex, ey];
 
   for i=1:ngp
-    indx=[ 2*i-1; 2*i ];
-    detJ=abs(det(JT(indx,:)));
+    indx = [ 2*i-1; 2*i ];
+    detJ = abs(det(JT(indx,:)));
     B = JT(indx, :) \ dNr(indx,:);
-    Ke1=Ke1+B'*D*B*detJ*wp(i);
+    Ke1 = Ke1+B'*D*B*detJ*wp(i);
   end
 
-  Ke=Ke1*t;
+  Ke = Ke1*t;
 %--------------------------end--------------------------------

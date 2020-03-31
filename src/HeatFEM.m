@@ -67,7 +67,7 @@ classdef HeatFEM < matlab.mixin.Copyable
             obj.gmsh = gmshData;
             obj.nodeCoordinates = getGlobalCoordinates(gmshData);
             
-            obj.nbrNodes = size(obj.nodeCoordinates, 1);
+            obj.nbrNodes = size(obj.nodeCoordinates, 2);
             
             % TODO: Generalize for vector fields
             obj.nbrDofs = obj.nbrNodes;
@@ -140,8 +140,8 @@ classdef HeatFEM < matlab.mixin.Copyable
                 weightedLoads = obj.theta*obj.loads(:, 2:end) + ...
                     (1-obj.theta)*obj.loads(:, 1:end-1);
 
-                obj.temperatures = obj.solveTransient(obj.temperatures, ...
-                    weightedLoads, obj.blockedDofs);
+                obj.temperatures = obj.solveTransient(obj.A, obj.B, ...
+                    obj.temperatures, weightedLoads, obj.blockedDofs);
             else
                 obj.temperatures = obj.partitionAndSolve(obj.K, ...
                     obj.loads, obj.temperatures, obj.blockedDofs);
@@ -150,13 +150,13 @@ classdef HeatFEM < matlab.mixin.Copyable
         
         function [Ex, Ey, elementTemp] = getElemTemp(obj, elementType, timeStep)
             Enod = getElements(obj.gmsh, elementType);
-            xs = obj.nodeCoordinates(:, 1);
-            ys = obj.nodeCoordinates(:, 2);
-            Ex = xs(Enod(:, 2:end));
-            Ey = ys(Enod(:, 2:end));
+            xs = obj.nodeCoordinates(1, :);
+            ys = obj.nodeCoordinates(2, :);
+            Ex = xs(Enod(2:end, :));
+            Ey = ys(Enod(2:end, :));
             
             temp = obj.temperatures(:, timeStep+1);
-            elementTemp = temp(Enod(:, 2:end));
+            elementTemp = temp(Enod(2:end, :));
         end
         
         function conf = getConfiguration(obj)
@@ -283,8 +283,8 @@ classdef HeatFEM < matlab.mixin.Copyable
             counter = 0;
             for block = elementBlocks
                 for element = block.elements
-                    ex = obj.nodeCoordinates(element.nodeTags, 1);
-                    ey = obj.nodeCoordinates(element.nodeTags, 2);
+                    ex = obj.nodeCoordinates(1, element.nodeTags)';
+                    ey = obj.nodeCoordinates(2, element.nodeTags)';
                     edof = obj.Dofs(element.nodeTags);
                     elemMatrix = func(ex, ey, block.elementType, element.elementTag);
                     if dim == 1
@@ -312,43 +312,6 @@ classdef HeatFEM < matlab.mixin.Copyable
                 matrix = sparse(I(1:counter), J(1:counter), V(1:counter), obj.nbrDofs, obj.nbrDofs);
             end
         end
-        
-        function X = solveTransient(obj, X, F, bds)
-            startTime = tic;
-            % For each time step, solve the linear transient system AX=Y
-            bd = bds{1};
-            if isempty(bd)
-                freeDofs = 1:obj.nbrDofs;
-            else
-                freeDofs = ~any(1:obj.nbrDofs == bd);
-            end
-            A = sparse(obj.A);
-            % Decompose the A-matrix to speed up the linear system solver,
-            % which prevents us from using the partitionAndSolve function
-            % (Works only for linear systems, and for constant Dirichlet
-            % boundary conditions)
-            dA = decomposition(A(freeDofs, freeDofs));
-            for timeStep = 1:(obj.timeSteps - 1)
-                Yn = obj.B * X(:, timeStep) + F(:, timeStep);
-                Xn = X(:, timeStep+1);
-                bd = bds{timeStep};
-                
-                if isempty(bd)
-                    freeDofs = 1:obj.nbrDofs;
-                else
-                    freeDofs = ~any(1:obj.nbrDofs == bd);
-                end
-                partYn = Yn(freeDofs) - ...
-                        A(freeDofs, ~freeDofs)* ...
-                        Xn(~freeDofs);
-                
-                partXn = dA \ partYn;
-                Xn(freeDofs) = partXn;
-                
-                X(:, timeStep + 1) = Xn;
-            end
-            fprintf("Solved transient system:\t%f secs\n", toc(startTime));
-        end
     end
     
     methods(Static)
@@ -357,7 +320,7 @@ classdef HeatFEM < matlab.mixin.Copyable
                 case Elements.TRI_3
                     Ke = hTRI_3K(ex, ey, D, thickness);
                 case Elements.QUA_4 % QUADS
-                    Ke = flw2i4e(ex', ey', [thickness 2], D);
+                    Ke = flw2i4e(ex, ey, [thickness 2], D);
                     %Ke = hQUA_4K(ex, ey, obj.D, obj.thickness);
                 otherwise
                     error("The element stiffness matrix is not yet implemented for the current element type");
@@ -384,6 +347,43 @@ classdef HeatFEM < matlab.mixin.Copyable
                 otherwise
                     error("The element load vector is not yet implemented for the current element type");
             end
+        end
+        
+        function X = solveTransient(A, B, X, F, bds)
+            startTime = tic;
+            % For each time step, solve the linear transient system AX=Y
+            [nd, ts] = size(X);
+            bd = bds{1};
+            if isempty(bd)
+                freeDofs = 1:nd;
+            else
+                freeDofs = ~any(1:nd == bd);
+            end
+            % Decompose the A-matrix to speed up the linear system solver,
+            % which prevents us from using the partitionAndSolve function
+            % (Works only for linear systems, and for constant Dirichlet
+            % boundary conditions)
+            dA = decomposition(A(freeDofs, freeDofs));
+            for timeStep = 1:(ts - 1)
+                Yn = B * X(:, timeStep) + F(:, timeStep);
+                Xn = X(:, timeStep+1);
+                bd = bds{timeStep};
+                
+                if isempty(bd)
+                    freeDofs = 1:nd;
+                else
+                    freeDofs = ~any(1:nd == bd);
+                end
+                partYn = Yn(freeDofs) - ...
+                    A(freeDofs, ~freeDofs)* ...
+                    Xn(~freeDofs);
+                
+                partXn = dA \ partYn;
+                Xn(freeDofs) = partXn;
+                
+                X(:, timeStep + 1) = Xn;
+            end
+            fprintf("Solved transient system:\t%f secs\n", toc(startTime));
         end
         
         function [X] = partitionAndSolve(A, Y, X, blockedDofs)

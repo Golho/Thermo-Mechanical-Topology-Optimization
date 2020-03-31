@@ -4,7 +4,6 @@ classdef (Abstract) TopOptProblem < handle
     
     properties
         fem
-        elementType
         weights
         computedWeights = false;
         
@@ -32,9 +31,8 @@ classdef (Abstract) TopOptProblem < handle
     end
     
     methods
-        function obj = TopOptProblem(femModel, elementType, options, intermediateFunc)
+        function obj = TopOptProblem(femModel, options, intermediateFunc)
             obj.fem = femModel;
-            obj.elementType = elementType;
             
             if nargin == 4
                 obj.intermediateFunc = intermediateFunc;
@@ -55,12 +53,13 @@ classdef (Abstract) TopOptProblem < handle
             p_kappa = obj.options.p_kappa;
             p_cp = obj.options.p_cp;
             
-            cond = @(phi) kappa_1 + phi^p_kappa*...
-                (kappa_2 - kappa_1);
-            cp = @(phi) cp_1 + phi^p_cp*(cp_2 - cp_1);
-            dens = @(phi) 1;
+            cond = @(phi) kappa_1 + phi^p_kappa * (kappa_2 - kappa_1);
+            condDer = @(phi) p_kappa*(phi)^(p_kappa-1) * (kappa_2 - kappa_1);
             
-            obj.fem.addInterpFuncs(cond, cp, dens);
+            cp = @(phi) cp_1 + phi^p_cp * (cp_2 - cp_1);
+            cpDer = @(phi) p_cp*phi^(p_cp-1) * (cp_2 - cp_1);
+            
+            obj.fem.addInterpFuncs(cond, condDer, cp, cpDer);
             obj.fem.assemble();
         end
         

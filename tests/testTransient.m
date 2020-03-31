@@ -49,10 +49,10 @@ figure(1)
 colorbar
 [Ex, Ey, ed] = fem.getElemTemp(Elements.QUA_4, 0);
 
-lowerNodes = find(abs(fem.nodeCoordinates(:, 2) - 0) <= 1e-6);
-[~, I] = sort(fem.nodeCoordinates(lowerNodes, 1));
+lowerNodes = find(abs(fem.nodeCoordinates(2, :) - 0) <= 1e-6);
+[~, I] = sort(fem.nodeCoordinates(1, lowerNodes));
 lowerNodes = lowerNodes(I);
-lowerCoords = fem.nodeCoordinates(lowerNodes, 1);
+lowerCoords = fem.nodeCoordinates(1, lowerNodes);
 lowerTemps = fem.temperatures(lowerNodes, 1);
 
 geoPlot = elfield2(Ex, Ey, ed);
@@ -65,7 +65,7 @@ for t = 1:(timeSteps-1)
     figure(1)
     title("Frame " + t);
     [Ex, Ey, ed] = fem.getElemTemp(Elements.QUA_4, t);
-    geoPlot.CData = ed';
+    geoPlot.CData = ed;
     lowerPlot.YData = fem.temperatures(lowerNodes, t+1);
     analPlot.YData = analytical(lowerCoords, t*tFinal/(timeSteps-1));
     drawnow

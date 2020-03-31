@@ -3,13 +3,13 @@ classdef MaxTemperatureProblem < TopOptProblem
     %   Detailed explanation goes here
 
     methods
-        function obj = MaxTemperatureProblem(femModel, elementType, options, volumeFraction, intermediateFunc)
+        function obj = MaxTemperatureProblem(femModel, options, volumeFraction, intermediateFunc)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin ~= 5
                 intermediateFunc = [];
             end
-            obj = obj@TopOptProblem(femModel, elementType, options, intermediateFunc);
+            obj = obj@TopOptProblem(femModel, options, intermediateFunc);
             obj.options.volumeFraction = volumeFraction;
             obj.options.normFactor = 1;
             obj.options.maxSmoothingPar = 15;
@@ -71,11 +71,7 @@ classdef MaxTemperatureProblem < TopOptProblem
             if obj.options.filter
                 designPar = obj.filterParameters(designPar);
             end
-            
-            %kappa_2 = obj.options.material_2.kappa;
-            dgdphi = zeros(length(designPar), 1);
-            deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
-            
+
             a = obj.options.maxSmoothingPar;
 
             maxTemp = obj.smax(obj.fem.temperatures(:, 2:end) / obj.options.normFactor, a, 1);
@@ -86,42 +82,9 @@ classdef MaxTemperatureProblem < TopOptProblem
             if any(isnan(adjointLoads) | isinf(adjointLoads), 'all')
                 error('Some element in the adjoint loads are either NaN or Inf');
             end
-            % Adjoint system is solved backward in time
-            adjoints = obj.fem.solveAdjoint(adjointLoads);
             
-            k0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(1, 1), ...
-                    obj.elementType, 'D');
-            c0 = obj.fem.getElementBaseMatrix(obj.fem.mainEnod(1, 1), ...
-                    obj.elementType, 'cp');
+            dgdphi = obj.fem.gradChainTerm(adjointLoads);
 
-            for e = 1:length(designPar)
-                edof = obj.fem.mainEnod(e, :);
-                T_e = obj.fem.temperatures(edof(2:end), :);
-                adjoint_e = adjoints(edof(2:end), :);
-                
-                
-                dkappadphi = obj.options.p_kappa*designPar(e)^(obj.options.p_kappa-1)*...
-                    (obj.options.material_2.kappa - obj.options.material_1.kappa);
-                dcpdphi = obj.options.p_cp*designPar(e)^(obj.options.p_cp-1)*...
-                    (obj.options.material_2.cp - obj.options.material_1.cp);
-                for n = 1:(obj.fem.timeSteps-1)
-                    T_ne = T_e(:, n+1);
-                    T_n_1e = T_e(:, n);
-                    adjoint_ne = adjoint_e(:, n);
-                    dgdphi(e) = dgdphi(e) + ...
-                        -adjoint_ne' * ( ...
-                            ( ...
-                                deltaT*obj.fem.theta*dkappadphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_ne - ...
-                            ( ...
-                                deltaT*(obj.fem.theta-1)*dcpdphi*k0 + ...
-                                dcpdphi*c0 ...
-                            )*T_n_1e ...
-                        );
-                end
-            end
-            
             if obj.options.filter
                 dgdphi = obj.filterGradient(dgdphi);
             end

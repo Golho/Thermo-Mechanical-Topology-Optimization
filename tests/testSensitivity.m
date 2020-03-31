@@ -45,27 +45,27 @@ options = struct(...
 );
 
 %%
-topOpt = HeatComplianceProblem(fem, Elements.QUA_4, options, 0.4);
+topOpt = HeatComplianceProblem(fem, options, 0.4);
 designPar = 0.5*ones(size(fem.mainDensities));
 g(1) = topOpt.objective(designPar)
 
-[Ex, Ey] = fem.getElemTemp(0);
+[Ex, Ey] = fem.getMainElemTemp(0);
 figure
 elfield2(Ex, Ey, designPar);
 
 % Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-6)
+dgdphi = numGrad(@topOpt.objective, designPar, 1e-8);
 
 % Analytical gradient
-der_g = topOpt.gradObjective(designPar)
-
+der_g = topOpt.gradObjective(designPar);
+assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
 %%
-topOpt = MaxTemperatureProblem(fem, Elements.QUA_4, options, 0.4);
+topOpt = MaxTemperatureProblem(fem, options, 0.4);
 designPar = 0.5*ones(size(fem.mainDensities));
 topOpt.normalize(designPar);
 g(1) = topOpt.objective(designPar)
 
-[Ex, Ey, ed] = fem.getElemTemp(fem.timeSteps-1);
+[Ex, Ey, ed] = fem.getMainElemTemp(fem.timeSteps-1);
 figure
 elfield2(Ex, Ey, ed);
 
@@ -74,3 +74,4 @@ dgdphi = numGrad(@topOpt.objective, designPar, 1e-7)
 
 % Analytical gradient
 der_g = topOpt.gradObjective(designPar)
+assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");

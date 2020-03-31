@@ -2,7 +2,7 @@ clear;
 close all;
 jobManager = JobManager();
 %%
-gmsh = gmshParser('meshes/square_01x01_002.msh');
+gmsh = gmshParser('meshes/square_01x01.msh');
 timeSteps = 20;
 tFinal = 1000;
 volumeFraction = 0.4;
@@ -64,12 +64,12 @@ opt.ftol_rel = 1e-6;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 %%
-topOpt_1 = HeatComplianceProblem(fem, Elements.QUA_4, options, volumeFraction);
+topOpt_1 = HeatComplianceProblem(fem, options, volumeFraction);
 
 job = Job(topOpt_1, initial, opt);
 jobManager.add(job);
 %%
-topOpt_2 = MaxTemperatureProblem(copy(fem), Elements.QUA_4, options, volumeFraction);
+topOpt_2 = MaxTemperatureProblem(copy(fem), options, volumeFraction);
 
 job = Job(topOpt_2, initial, opt);
 %jobManager.add(job);
