@@ -3,10 +3,10 @@ close all;
 jobManager = JobManager();
 
 isnear = @(x, a) abs(x-a) < 1e-3; 
-mesh = StructuredMesh([61, 0.1], [61, 0.1]);
+mesh = StructuredMesh([41, 0.1], [41, 0.1]);
 timeSteps = 50;
-radius = 0.005;
-volumeFraction = 0.2;
+radius = 0.01;
+volumeFraction = 0.4;
 
 globalCoord = mesh.coordinates();
 
@@ -54,16 +54,16 @@ opt.verbose = 1;
 opt.ftol_rel = 1e-6;
 opt.algorithm = NLOPT_LD_MMA;
 %%
-for tFinal = [1000]
+for tFinal = [1, 10, 100, 1000, 10000]
     fem = OptHeatFEMStructured(mesh, tFinal, timeSteps);
     fem.addBoundaryCondition(fluxCorner);
     fem.addBodyCondition(body);
 
     fem.setMaterial(material_2);
 
-    topOpt = MaxTemperatureProblem(fem, options, volumeFraction);
+    topOpt = HeatComplianceProblem(fem, options, volumeFraction);
     initial = volumeFraction*ones(size(fem.designPar));
-    topOpt.normalize(initial);
+
     job = Job(topOpt, initial, opt);
     jobManager.add(job);
 end

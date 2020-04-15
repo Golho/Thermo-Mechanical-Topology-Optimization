@@ -4,10 +4,10 @@ jobManager = JobManager();
 %%
 isnear = @(x, a) abs(x-a) < 1e-3;
 mesh = StructuredMesh([41, 0.05], [41, 0.05], [41, 0.05]);
-tFinal = 400;
+tFinal = 800;
 timeSteps = 20;
 radius = 0.005;
-volumeFraction = 0.4;
+volumeFraction = 0.2;
 
 globalCoord = mesh.coordinates();
 
@@ -60,9 +60,9 @@ options = struct(...
 %
 % intermediateFunc = @(femModel, designPar) plotIntermediate(femModel, designPar, tempFig, designFig, tempPlot, designPlot);
 
-opt.maxtime = 5*60;
+opt.maxtime = 30*60;
 opt.verbose = 1;
-opt.ftol_rel = 1e-6;
+opt.ftol_rel = 1e-7;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 %%
 opt.algorithm = NLOPT_LD_MMA;

@@ -48,14 +48,17 @@ classdef HeatFEMStructured < HeatFEMBase
                 "NodeField");
         end
         
-        function saveElementField(obj, filePrefix, fieldVector, label)
-            temp3DMatrix = zeros(max(obj.mesh.Nx-1, 1),...
+        function saveElementField(obj, filePrefix, fieldVector, label, pointValue)
+            if nargin < 5
+                pointValue = false;
+            end
+            temp3DMatrix = zeros(max(obj.mesh.Nx-1, 1), ...
                 max(obj.mesh.Ny-1, 1), ...
                 max(obj.mesh.Nz-1, 1));
             temp3DMatrix(:) = fieldVector;
             filenameT = filePrefix + ".vtk";
             Mat2VTK(filenameT, temp3DMatrix, "ascii", label, ...
-                "ElementField", true);
+                "ElementField", ~pointValue);
         end
     end
     
