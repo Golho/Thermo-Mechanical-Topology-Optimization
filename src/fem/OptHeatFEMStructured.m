@@ -19,6 +19,7 @@ classdef OptHeatFEMStructured < HeatFEMStructured & OptHeatFEMBase
             ex = obj.Ex(:, 1);
             ey = obj.Ey(:, 1);
             ez = obj.Ez(:, 1);
+            % Take advantage of the elements being identical
             volume = obj.elementVolume(ex, ey, ez, obj.ElementType);
             volumes = volume*ones(obj.mesh.NumElements, 1);
         end

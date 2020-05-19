@@ -6,15 +6,24 @@ classdef Material
         density
         heatCapacity
         Kappa % thermal conductivity matrix
-        D % material stiffness matrix
+        youngsModulus % Young's modulus
+        poissonsRatio % Poisson's ratio
+        stiffness % material stiffness matrix
+        thermalExp % Thermal expansion vector
     end
     
     methods
-        function obj = Material(density, heatCapacity, Kappa, D)
+        function obj = Material(density, heatCapacity, Kappa, E, nu, thermalExp)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
+            if nargin < 6
+                thermalExp = ones(3, 1);
+            end
+            if nargin < 5
+                E = 1;
+            end
             if nargin < 4
-                D = eye(3);
+                nu = 0.25;
             end
             if nargin < 3
                 Kappa = eye(3);
@@ -25,13 +34,16 @@ classdef Material
             if nargin < 1
                 density = 1;
             end
-            assert(size(D, 1) == 3 && size(D, 2), "The material stiffness matrix must be a 3x3 matrix");
             assert(size(Kappa, 1) == 3 && size(Kappa, 2), "The thermal conductivity matrix must be a 3x3 matrix");
+            assert(size(thermalExp, 1) == 3 && size(thermalExp, 1), "The thermal conductivity matrix must be a 3x1 matrix");
 
             obj.density = density;
             obj.heatCapacity = heatCapacity;
             obj.Kappa = Kappa;
-            obj.D = D;
+            obj.youngsModulus = E;
+            obj.poissonsRatio = nu;
+            obj.stiffness = isotropic(E, nu);
+            obj.thermalExp = thermalExp;
         end
     end
 end

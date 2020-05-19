@@ -9,6 +9,8 @@ classdef OptHeatFEMBase < HeatFEMBase
         
         conductivityDer
         heatCapacityDer
+        
+        optConfiguration
     end
     
     methods(Abstract)
@@ -18,6 +20,10 @@ classdef OptHeatFEMBase < HeatFEMBase
     end
     
     methods
+        function conf = get.optConfiguration(obj)
+            conf = obj.getOptConfiguration();
+        end
+        
         function addInterpFuncs(obj, conductivity, conductivityDer, ...
                 heatCapacity, heatCapacityDer)
             % ADDINTERPFUNCS Add a interpolation function for the material
@@ -44,9 +50,7 @@ classdef OptHeatFEMBase < HeatFEMBase
                     matrix = obj.elementMass(elementCoord, obj.ElementType, 1);
             end
         end
-    end
-    
-    methods(Access = protected)
+        
         function adjoints = solveAdjoint(obj, loads)
             if obj.transient
                 % Create a matrix as big as the temperatures, but discard
@@ -68,6 +72,15 @@ classdef OptHeatFEMBase < HeatFEMBase
             else
                 error('The steady state adjoint solver is not yet implemented');
             end
+        end
+    end
+    
+    methods(Access = protected)
+        function conf = getOptConfiguration(obj)
+            conf = struct( ...
+                "conductivityFunc", obj.conductivity, ...
+                "heatCapacityFunc", obj.heatCapacity ...
+            );
         end
         
         function [prop] = elementProp(obj, property, designPar)

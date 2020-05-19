@@ -14,6 +14,7 @@ classdef (Abstract) HeatFEMBase < FEMBase
         
         M
         K
+        theta
         
         % Debugging properties
         A % dR/dT_n matrix
@@ -24,7 +25,6 @@ classdef (Abstract) HeatFEMBase < FEMBase
     properties(Access = protected)
         fl
         fv
-        theta
         blockedDofs
     end
     
@@ -40,15 +40,7 @@ classdef (Abstract) HeatFEMBase < FEMBase
     
     methods
         function conf = get.configuration(obj)
-            conf = struct(...
-                'material', obj.material, ...
-                'boundaryConditions', {obj.boundaryConditions}, ...
-                'bodyConditions', {obj.bodyConditions}, ...
-                'mesh', obj.mesh, ...
-                'tFinal', obj.tFinal, ...
-                'timeSteps', obj.timeSteps, ...
-                'theta', obj.theta ...
-                );
+            conf = obj.getConfiguration();
         end
 
         function assemble(obj)
@@ -89,8 +81,20 @@ classdef (Abstract) HeatFEMBase < FEMBase
     end
     
     methods(Access = protected)
+        function conf = getConfiguration(obj)
+            conf = struct(...
+                'material', obj.material, ...
+                'boundaryConditions', {obj.boundaryConditions}, ...
+                'bodyConditions', {obj.bodyConditions}, ...
+                'mesh', obj.mesh, ...
+                'tFinal', obj.tFinal, ...
+                'timeSteps', obj.timeSteps, ...
+                'theta', obj.theta ...
+                );
+        end
+        
         function init(obj)
-            obj.Dofs = (1:obj.nbrDofs)';
+            obj.Dofs = (1:obj.nbrDofs);
             % Initialize matrices
             obj.K = sparse(obj.nbrDofs, obj.nbrDofs);
             obj.M = sparse(obj.nbrDofs, obj.nbrDofs);

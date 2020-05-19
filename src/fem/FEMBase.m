@@ -16,6 +16,7 @@ classdef FEMBase < matlab.mixin.Copyable
         
         % Main elements properties
         Enod
+        Edof
         Ex
         Ey
         Ez
@@ -55,6 +56,11 @@ classdef FEMBase < matlab.mixin.Copyable
         
         function nbrDofs = get.nbrDofs(obj)
             nbrDofs = obj.nbrNodes * obj.fieldDim;
+        end
+        
+        function dofs = getDofs(obj, nodes)
+            dofs = obj.Dofs(:, nodes);
+            dofs = dofs(:);
         end
     end
 end

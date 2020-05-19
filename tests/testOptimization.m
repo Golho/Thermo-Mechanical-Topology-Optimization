@@ -17,9 +17,8 @@ material_1 = Material(1, 1e6, 0.1*eye(3));
 material_2 = Material(1, 1e6, 10*eye(3));
 
 options = struct(...
-    'p_kappa', 3, ...
-    'p_cp', 3, ...
-    'filter', true, ...
+    'heavisideFilter', false, ...
+    'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
     'material_1', material_1, ...
@@ -56,6 +55,9 @@ fem.addBodyCondition(body);
 
 fem.setMaterial(material_2);
 
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
+
 initial = volumeFraction*ones(size(fem.designPar));
 
 % tempFig = figure(1);
@@ -78,6 +80,8 @@ fem.addBoundaryCondition(flux);
 fem.addBodyCondition(body);
 
 fem.setMaterial(material_2);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 initial = volumeFraction*ones(size(fem.designPar));
 
@@ -122,6 +126,8 @@ fem.addBoundaryCondition(fluxCorner);
 fem.addBodyCondition(body);
 
 fem.setMaterial(material_2);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 topOpt_2 = HeatComplianceProblem(fem, options, volumeFraction);
 
@@ -168,6 +174,8 @@ fem.addBoundaryCondition(fluxCorner);
 fem.addBodyCondition(body);
 
 fem.setMaterial(material_2);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 topOpt_2 = MaxTemperatureProblem(copy(fem), options, volumeFraction);
 initial = volumeFraction*ones(size(fem.designPar));
