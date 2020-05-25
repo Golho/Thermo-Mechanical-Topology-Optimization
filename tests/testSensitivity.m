@@ -46,7 +46,7 @@ fem.addBodyCondition(body);
 fem.setMaterial(material_2);
 
 options = struct(...
-    'heavisideFilter', false, ...
+    'heavisideFilter', true, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
@@ -57,29 +57,18 @@ options = struct(...
 [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
 fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 topOpt = HeatComplianceProblem(fem, options, 0.4);
-designPar = 0.5*ones(size(fem.designPar));
-g(1) = topOpt.objective(designPar)
+initial = rand(size(fem.designPar));
+g(1) = topOpt.objective(initial)
 
-% Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-8);
-
-% Analytical gradient
-der_g = topOpt.gradObjective(designPar);
-norm(dgdphi - der_g) / norm(dgdphi)
-assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
 topOpt = MaxTemperatureProblem(fem, options, 0.4);
-designPar = 0.5*ones(size(fem.designPar));
-topOpt.normalize(designPar);
-g(1) = topOpt.objective(designPar)
+topOpt.normalize(initial);
+g(1) = topOpt.objective(initial)
 
-% Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-7);
-
-% Analytical gradient
-der_g = topOpt.gradObjective(designPar);
-norm(dgdphi - der_g) / norm(dgdphi)
-assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");
 %% GMSH mesh
 gmsh = gmshParser('meshes/square_coarse.msh');
 timeSteps = 50;
@@ -114,38 +103,26 @@ fem.addBodyCondition(body);
 fem.setMaterial(material_2);
 
 options = struct(...
-    'heavisideFilter', false, ...
+    'heavisideFilter', true, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
     'material_1', material_1, ...
     'material_2', material_2 ...
 );
-
 %%
 [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
 fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 topOpt = HeatComplianceProblem(fem, options, 0.4);
-designPar = 0.5*ones(size(fem.designPar));
-g(1) = topOpt.objective(designPar)
+initial = rand(size(fem.designPar));
+g(1) = topOpt.objective(initial)
 
-% Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-8);
-
-% Analytical gradient
-der_g = topOpt.gradObjective(designPar);
-norm(dgdphi - der_g) / norm(dgdphi)
-assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
 topOpt = MaxTemperatureProblem(fem, options, 0.4);
-designPar = 0.5*ones(size(fem.designPar));
-topOpt.normalize(designPar);
-g(1) = topOpt.objective(designPar)
+topOpt.normalize(initial);
+g(1) = topOpt.objective(initial)
 
-% Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-7);
-
-% Analytical gradient
-der_g = topOpt.gradObjective(designPar);
-norm(dgdphi - der_g) / norm(dgdphi)
-assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");

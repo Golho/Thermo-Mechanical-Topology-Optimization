@@ -18,11 +18,11 @@ classdef FlexibilityProblem < TopOptProblem
             designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            designPar = obj.filterParameters(designPar);
+            filteredPar = obj.filterParameters(designPar);
             
             I = obj.fem.getDummy("josse");
             
-            obj.fem.reassemble(designPar);
+            obj.fem.reassemble(filteredPar);
             obj.fem.solve();
 
             g = - I' * obj.fem.displacements / obj.options.u_max;

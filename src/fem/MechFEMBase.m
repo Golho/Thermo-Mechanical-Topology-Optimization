@@ -15,7 +15,6 @@ classdef (Abstract) MechFEMBase < FEMBase
         configuration
         
         K
-        loads
         K_thermal
         % Debugging properties
         
@@ -25,13 +24,13 @@ classdef (Abstract) MechFEMBase < FEMBase
         K_c
         fl % boundary load
         fv % volume load
-        ft % thermal load
         blockedDofs
         planarType % Plane stress or plane strain if 2D
     end
     
     properties(Dependent)
         K_tot
+        loads
     end
     
     methods(Abstract)
@@ -61,6 +60,10 @@ classdef (Abstract) MechFEMBase < FEMBase
                 );
         end
         
+        function loads = get.loads(obj)
+            loads = obj.fl + obj.fv + obj.K_thermal * obj.temperatureChanges;
+        end
+        
         function assemble(obj)
             if ~obj.appliedBoundaries
                 obj.applyBoundaryConditions();
@@ -68,14 +71,10 @@ classdef (Abstract) MechFEMBase < FEMBase
             if ~obj.appliedBodies
                 obj.applyBodyConditions();
             end
-            
-            obj.loads = obj.fl + obj.fv + obj.ft;
         end
         
         function setTemperatures(obj, temperatureChanges)
             obj.temperatureChanges = temperatureChanges;
-            obj.ft = obj.K_thermal * obj.temperatureChanges;
-            obj.loads = obj.fl + obj.fv + obj.ft;
         end
         
         function solve(obj)
@@ -110,9 +109,8 @@ classdef (Abstract) MechFEMBase < FEMBase
             
             obj.fl = sparse(obj.nbrDofs, obj.timeSteps);
             obj.fv = sparse(obj.nbrDofs, obj.timeSteps);
-            obj.ft = sparse(obj.nbrDofs, obj.timeSteps);
-            obj.loads = sparse(obj.nbrDofs, obj.timeSteps);
             obj.displacements = zeros(obj.nbrDofs, obj.timeSteps);
+            obj.temperatureChanges = zeros(obj.nbrNodes, obj.timeSteps);
             % Create cell array as each entry of blocked dofs may vary in size
             obj.blockedDofs = cell(1, obj.timeSteps);
         end

@@ -1,4 +1,5 @@
 %% GMSH meshes
+clear; close all;
 gmsh = gmshParser('meshes/long_quad.msh');
 timeSteps = 100;
 tFinal = 10;
@@ -71,6 +72,8 @@ for t = 1:(timeSteps-1)
     lowerPlot.YData = fem.temperatures(lowerNodes, t+1);
     analPlot.YData = analytical(lowerCoords, t*tFinal/(timeSteps-1));
     drawnow
+    error = norm(lowerPlot.YData - analPlot.YData) / numel(lowerNodes)
+    assert(error < 1e-3, "The temperature does not match the analytical solution");
 end
 %%
 gmsh = gmshParser('meshes/square_01x01.msh');
@@ -131,7 +134,8 @@ fem.setMaterial(m);
 fem.assemble()
 fem.solve();
 %% Structured meshes
-mesh = StructuredMesh([2000, 20], [2, 1]);
+nbrPoints = 2000;
+mesh = StructuredMesh([nbrPoints, 20], [2, 1]);
 globalCoord = mesh.coordinates();
 
 leftNodes = find(globalCoord(1, :) == 0);
@@ -208,6 +212,8 @@ for t = 1:(timeSteps-1)
     lowerPlot.YData = fem.temperatures(lowerNodes, t+1);
     analPlot.YData = analytical(lowerCoords, t*tFinal/(timeSteps-1));
     drawnow
+    error = norm(lowerPlot.YData - analPlot.YData) / numel(lowerNodes)
+    assert(error < 1e-3, "The temperature does not match the analytical solution");
 end
 %% 
 clear;

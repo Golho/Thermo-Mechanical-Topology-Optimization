@@ -136,19 +136,16 @@ classdef MechFEMStructured < MechFEMBase
                 switch bc.type
                     case 'main'
                         obj.K = obj.applyMain(elementCoord);
+                        
+                        thermalMatrix = obj.elementTempStiffness(elementCoord, ...
+                            obj.ElementType, obj.material.stiffness, obj.material.thermalExp, obj.planarType);
+                        obj.K_thermal = obj.integrate(thermalMatrix, 3);
                     case 'load'
                         loadMatrix = obj.elementLoad(elementCoord, obj.ElementType, bc.value);
                         f = obj.integrate(loadMatrix, 1);
                         obj.fv(:, bc.timeSteps) = ...
                             obj.fv(:, bc.timeSteps) + ...
                             repmat(f, [1 length(bc.timeSteps)]);
-                    case 'thermal'
-                        obj.temperatureChanges = bc.temperatures;
-                        thermalMatrix = obj.elementTempStiffness(elementCoord, ...
-                            obj.ElementType, obj.material.stiffness, obj.material.thermalExp, obj.planarType);
-                        obj.K_thermal = obj.integrate(thermalMatrix, 3);
-                        
-                        obj.ft = obj.K_thermal * obj.temperatureChanges;
                 end
             end
             obj.appliedBodies = true;

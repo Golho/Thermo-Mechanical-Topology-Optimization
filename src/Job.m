@@ -137,7 +137,10 @@ classdef Job < handle
                 elseif isa(obj.problem.fem, "MechFEMBase")
                     title("Deformed geometry (" + timeStep + ")")
                     ed = obj.problem.fem.getElemDisp(timeStep);
-                    eldisplace2(Ex, Ey, ed, 1);
+                    scaleFactor = 1;
+                    newEx = Ex + scaleFactor*ed(1:2:end, :);
+                    newEy = Ey + scaleFactor*ed(2:2:end, :);
+                    elfield2(newEx, newEy, filteredDesign);
                     axis equal
                 else
                     warning("The result from the FEM model is not registrered as displayable");

@@ -90,7 +90,7 @@ topOpt_1.normalize(initial);
 job = Job(topOpt_1, initial, opt);
 jobManager.add(job);
 %%
-mesh = StructuredMesh([31, 0.1], [31, 0.1]);
+mesh = StructuredMesh([15, 0.1], [15, 0.1]);
 globalCoord = mesh.coordinates();
 
 centerNodes = find( (globalCoord(1, :) >= 0.049 & globalCoord(1, :) <= 0.051) & ...
@@ -136,7 +136,7 @@ initial = volumeFraction*ones(size(fem.designPar));
 job = Job(topOpt_2, initial, opt);
 jobManager.add(job);
 %%
-mesh = StructuredMesh([11, 0.05], [11, 0.05], [11, 0.05]);
+mesh = StructuredMesh([7, 0.05], [7, 0.05], [7, 0.05]);
 globalCoord = mesh.coordinates();
 
 centerNodes = find( globalCoord(1, :) == 0 & ...
@@ -191,11 +191,3 @@ jobManager.add(job);
 jobManager.runAll();
 %%
 jobManager.plotAll();
-%%
-saveAnswer = questdlg("Would you like to save all jobs?", "Yes", "No");
-switch saveAnswer
-    case "Yes"
-        jobManager.saveAll();
-    case "No"
-        disp("Did not save the jobs");
-end

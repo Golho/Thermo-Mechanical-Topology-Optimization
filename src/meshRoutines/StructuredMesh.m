@@ -12,7 +12,7 @@ classdef StructuredMesh
     end
     
     properties (Dependent)
-        NumNodes
+        NumNodes % TODO: use consistent naming for amount (num or nbr)
         NumElements
         ElementType
         Dimensions

@@ -1,5 +1,6 @@
 %% GMSH meshes
-mesh = StructuredMesh([81, 1], [81, 1]);
+clear; close all;
+mesh = StructuredMesh([31, 1], [31, 1]);
 globalCoord = mesh.coordinates();
 
 centerNodes = find( (globalCoord(1, :) >= 0.49 & globalCoord(1, :) <= 0.51) & ...
@@ -8,7 +9,7 @@ centerNodes = find( (globalCoord(1, :) >= 0.49 & globalCoord(1, :) <= 0.51) & ..
 cornerNodes = find( (globalCoord(1, :) == 0 | globalCoord(1, :) == 1) & ...
                     (globalCoord(2, :) == 0 | globalCoord(2, :) == 1));
 
-timeSteps = 100;
+timeSteps = 10;
 tFinal = 1000;
 
 k = 400;
@@ -71,13 +72,7 @@ pulled = struct(...
 
 % Create body conditions
 body = struct(...
-    'type', 'main', ...
-    'physicalName', 'solid' ...
-);
-
-temps = struct(...
-    'type', 'thermal', ...
-    'temperatures', femTemp.temperatures ...
+    'type', 'main' ...
 );
 
 fem = MechFEMStructured(mesh, timeSteps, "plane stress");
@@ -85,9 +80,9 @@ fem = MechFEMStructured(mesh, timeSteps, "plane stress");
 fem.addBoundaryCondition(fixed);
 fem.addBoundaryCondition(pulled);
 fem.addBodyCondition(body);
-fem.addBodyCondition(temps);
 
 fem.setMaterial(m);
+fem.setTemperatures(femTemp.temperatures);
 
 fem.assemble()
 fem.solve();

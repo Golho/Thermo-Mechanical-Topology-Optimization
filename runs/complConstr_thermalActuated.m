@@ -10,7 +10,7 @@ opt.algorithm = NLOPT_LD_MMA;
 
 timeSteps = 50;
 volumeFraction = 0.25;
-radius = 0.002;
+radius = 0.005;
 u_max = 1e-6;
 P = 1;
 k = 0;
@@ -23,7 +23,7 @@ material_2 = Material(1, 1.767e6, 0.33*eye(3), 0.2e9, 0.45, 230e-6*ones(3, 1));
 %%
 width = 0.1;
 height = 0.1;
-mesh = StructuredMesh([101, width], [101, height]);
+mesh = StructuredMesh([51, width], [51, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -150,29 +150,31 @@ p_kappa = 3;
 p_cp = 1;
 for p_E = [3]
     for p_alpha = [3]
-        mechFEM_i = copy(mechFEM);
+        for penalty = 100%[1e-5, 1e-4, 1e-3]
+            mechFEM_i = copy(mechFEM);
 
-        heatFEM_i = OptThermoMechStructured(mechFEM_i, mesh, tFinal, timeSteps, 1);
+            heatFEM_i = OptThermoMechStructured(mechFEM_i, mesh, tFinal, timeSteps, 1);
 
-        heatFEM_i.addBoundaryCondition(tempPrescribed);
-        heatFEM_i.addBodyCondition(body);
+            heatFEM_i.addBoundaryCondition(tempPrescribed);
+            heatFEM_i.addBodyCondition(body);
 
-        heatFEM_i.setMaterial(material_2);
-        stiffFEM.setMaterial(material_2);
+            heatFEM_i.setMaterial(material_2);
+            stiffFEM.setMaterial(material_2);
 
-        [E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, p_E, p_alpha);
-        stiffFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
-        mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
+            [E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, p_E, p_alpha);
+            stiffFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
+            mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-        [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, p_kappa, p_cp);
-        heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
+            [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, p_kappa, p_cp);
+            heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
-        coupledFEM = heatFEM_i;
-        topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, volumeFraction, u_max);
-        initial = volumeFraction*ones(size(heatFEM_i.designPar));
+            coupledFEM = heatFEM_i;
+            topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, volumeFraction, u_max, penalty);
+            initial = volumeFraction*ones(size(heatFEM_i.designPar));
 
-        job = Job(topOpt, initial, opt);
-        jobManager.add(job);
+            job = Job(topOpt, initial, opt);
+            jobManager.add(job);
+        end
     end
 end
 %%

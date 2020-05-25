@@ -35,7 +35,7 @@ classdef Material
                 density = 1;
             end
             assert(size(Kappa, 1) == 3 && size(Kappa, 2), "The thermal conductivity matrix must be a 3x3 matrix");
-            assert(size(thermalExp, 1) == 3 && size(thermalExp, 1), "The thermal conductivity matrix must be a 3x1 matrix");
+            assert(size(thermalExp, 1) == 3 && size(thermalExp, 1), "The thermal expansion vector must be a 3x1 matrix");
 
             obj.density = density;
             obj.heatCapacity = heatCapacity;

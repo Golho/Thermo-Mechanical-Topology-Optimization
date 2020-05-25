@@ -21,7 +21,7 @@ material_2 = Material(1, 1e6, 10*eye(3), 1e9, 0.31, 1.5e-5*ones(3, 1));
 %%
 width = 5e-4;
 height = 2.5e-4;
-mesh = StructuredMesh([41, width], [21, height]);
+mesh = StructuredMesh([17, width], [9, height]);
 globalCoord = mesh.coordinates();
 
 topAndLeftNodes = find(globalCoord(1, :) == 0 | ...
@@ -135,11 +135,3 @@ end
 jobManager.runAll();
 %%
 jobManager.plotAll();
-%%
-saveAnswer = questdlg("Would you like to save all jobs?", "Yes", "No");
-switch saveAnswer
-    case "Yes"
-        jobManager.saveAll();
-    case "No"
-        disp("Did not save the jobs");
-end

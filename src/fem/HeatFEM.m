@@ -168,17 +168,17 @@ classdef HeatFEM < HeatFEMBase
             for block = elementBlocks
                 for element = block.elements
                     coord = obj.nodeCoordinates(:, element.nodeTags)';
-                    edof = obj.Dofs(element.nodeTags);
+                    edof = obj.Dofs(:, element.nodeTags);
                     elemMatrix = func(coord, block.elementType, element.elementTag);
                     sumDofs = numel(elemMatrix);
                     if dim == 1
                         I(counter+(1:sumDofs)) = edof;
                         V(counter+(1:sumDofs)) = elemMatrix;
                     elseif dim == 2
-                        EnodEnod = repmat(edof, numel(edof), 1);
-                        I(counter+(1:sumDofs)) = EnodEnod(:);
-                        EEnnoodd = repelem(edof, numel(edof), 1);
-                        J(counter+(1:sumDofs)) = EEnnoodd;
+                        EdofEdof = repmat(edof(:), numel(edof), 1);
+                        I(counter+(1:sumDofs)) = EdofEdof(:);
+                        EEddooff = repelem(edof(:), numel(edof), 1);
+                        J(counter+(1:sumDofs)) = EEddooff;
                         V(counter+(1:sumDofs)) = elemMatrix(:);
                     end
                     counter = counter + sumDofs;

@@ -27,11 +27,13 @@ classdef OptMechFEMStructured < MechFEMStructured & OptMechFEMBase
         function reassemble(obj, designPar)
             obj.designPar = designPar;
             
-            k0 = obj.getElementBaseMatrix(1, "D");
-            obj.K = obj.optIntegrate(k0, "E", 2);
+            k0_uu = obj.getElementBaseMatrix(1, "D");
+            obj.K = obj.optIntegrate(k0_uu, "E", 2);
             
-            k_thermal0 = obj.getElementBaseMatrix(1, "D-alpha");
-            obj.K_thermal = obj.optIntegrate(k_thermal0, "alpha", 3);
+            k0_uT = obj.getElementBaseMatrix(1, "D-alpha");
+            obj.K_thermal = obj.optIntegrate(k0_uT, "alpha", 3);
+            
+            obj.assemble();
         end
         
         function weights = computeWeights(obj, radius, weightFunction)
@@ -54,21 +56,27 @@ classdef OptMechFEMStructured < MechFEMStructured & OptMechFEMBase
             
             chainGrad = zeros(size(obj.designPar));
             
-            k0 = obj.getElementBaseMatrix(1, 'D');
+            k0_uu = obj.getElementBaseMatrix(1, 'D');
+            k0_uT = obj.getElementBaseMatrix(1, 'D-alpha');
             
             edof = obj.Edof(:, 1);
+            enod = obj.Enod(:, 1);
             u_e = obj.displacements(edof, :);
+            T_e = obj.temperatureChanges(enod, :);
             adjoint_e = adjoints(edof, :);
             dRdx = zeros(size(adjoint_e));
             
             for e = 1:length(chainGrad)
                 edof(:) = obj.Edof(:, e);
+                enod(:) = obj.Enod(:, e);
                 u_e(:) = obj.displacements(edof, :);
+                T_e(:) = obj.temperatureChanges(enod, :);
                 adjoint_e(:) = adjoints(edof, :);
             
                 dEdphi = obj.stiffnessDer(obj.designPar(e));
+                dalphadphi = obj.thermalExpDer(obj.designPar(e));
 
-                dRdx(:) = dEdphi * k0 * u_e;
+                dRdx(:) = dEdphi * k0_uu * u_e - dalphadphi * k0_uT * T_e;
                 chainGrad(e) = -sum(dot(adjoint_e, dRdx));
             end
             fprintf("Computed gradient term:\t\t%f secs\n", toc(startTime));

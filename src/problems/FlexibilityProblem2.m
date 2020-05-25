@@ -30,7 +30,7 @@ classdef FlexibilityProblem2 < TopOptProblem
         
         function dgdphi = gradObjective(obj, designPar)
             designPar = reshape(designPar, [], 1);
-            %filteredPar = obj.filterParameters(designPar);
+            filteredPar = obj.filterParameters(designPar);
 
             I = obj.fem.getDummy("josse");
             inputComp = obj.fem.displacements' * obj.fem.K_tot * obj.fem.displacements;
@@ -43,8 +43,8 @@ classdef FlexibilityProblem2 < TopOptProblem
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads);
             
-            for e = 1:length(designPar)
-                d = designPar(e);
+            for e = 1:length(filteredPar)
+                d = filteredPar(e);
                 dEdphi = obj.fem.stiffnessDer(d);
                 k0 = obj.fem.getElementBaseMatrix(e, 'D');
                 u_e = obj.fem.displacements(obj.fem.Edof(:, e), :);

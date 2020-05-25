@@ -123,6 +123,26 @@ classdef (Abstract) TopOptProblem < handle
             end
             %filteredGrad = 1./max(designPar, 0.01) .* obj.weights * (designPar.*grad);
         end
+        
+        function relErrors = testGradients(obj, designPar, h)
+            if nargin < 3
+                h = 1e-8;
+            end
+            dgdphi = numGrad(@obj.objective, designPar, h);
+
+            % Analytical gradient
+            der_g = obj.gradObjective(designPar);
+            objError = norm(dgdphi - der_g) / norm(dgdphi);
+            c = 1;
+            constraintErrors = [];
+            while ismethod(obj, "constraint" + (c))
+                dgdphi = numGrad(@(x) obj.("constraint" + c)(x), designPar, h);
+                der_g = obj.("gradConstraint" + c)(designPar);
+                constraintErrors(c) = norm(dgdphi - der_g) / norm(dgdphi);
+                c = c + 1;
+            end
+            relErrors = [objError, constraintErrors];
+        end
     end
 end
 

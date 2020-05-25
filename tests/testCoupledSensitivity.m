@@ -6,6 +6,7 @@ radius = 5e-5;
 P = 1;
 k = 250;
 tFinal = 600;
+u_max = 5e-5;
 
 material_1 = Material(1, 1e6, 0.1*eye(3), 3e1, 0.31, 0*ones(3, 1));
 material_2 = Material(1, 1e6, 84*eye(3), 200e9, 0.31, 1.5e-5*ones(3, 1));
@@ -103,13 +104,59 @@ coupledFEM = heatFEM;
 
 %%
 topOpt = ThermallyActuatedProblem(coupledFEM, options, volumeFraction);
-designPar = 0.5*ones(size(heatFEM.designPar));
-g(1) = topOpt.objective(designPar)
+initial = rand(size(coupledFEM.designPar));
+g(1) = topOpt.objective(initial)
 
-% Numerical gradient
-dgdphi = numGrad(@topOpt.objective, designPar, 1e-8);
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");
+%%
+topOpt = ThermallyActuatedProblem2(coupledFEM, options, volumeFraction);
+initial = rand(size(coupledFEM.designPar));
+g(1) = topOpt.objective(initial)
 
-% Analytical gradient
-der_g = topOpt.gradObjective(designPar);
-norm(dgdphi - der_g) / norm(dgdphi)
-assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+errors = topOpt.testGradients(initial, 1e-6)
+assert(all(errors < 1e-5), "Sensitivities does not match");
+%%
+
+stiffFEM = OptMechFEMStructured(mesh, 1, "plane stress");
+
+% Create boundary conditions
+fixed = struct(...
+    'nodes', topAndLeftNodes, ...
+    'type', 'Dirichlet', ...
+    'value', 0, ...
+    'components', [1, 1], ...
+    'timeSteps', 1 ...
+);
+
+symmetry = struct(...
+    'nodes', bottomNodes, ...
+    'type', 'Dirichlet', ...
+    'value', 0, ...
+    'components', [0, 1], ...
+    'timeSteps', 1 ...
+);
+
+output = struct( ...
+    'nodes', rightCornerExpanded, ...
+    'type', 'Neumann', ...
+    'value', 1, ...
+    'components', [1, 0], ...
+    'timeSteps', 1 ...
+);
+
+stiffFEM.addBoundaryCondition(symmetry);
+stiffFEM.addBoundaryCondition(fixed);
+stiffFEM.addBoundaryCondition(output);
+stiffFEM.addBodyCondition(body);
+
+stiffFEM.setMaterial(material_2);
+[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+stiffFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
+
+topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, volumeFraction, u_max);
+initial = rand(size(coupledFEM.designPar));
+g(1) = topOpt.objective(initial)
+
+errors = topOpt.testGradients(initial, 1e-5)
+assert(all(errors < 1e-5), "Sensitivities does not match");

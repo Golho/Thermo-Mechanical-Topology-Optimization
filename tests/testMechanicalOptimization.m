@@ -21,7 +21,7 @@ material_2 = Material(1, 1e6, 10*eye(3), 3e9*0.01, 0.4);
 isnear = @(x, a) abs(x-a) < 1e-3;
 width = 0.3;
 height = 0.1;
-mesh = StructuredMesh([41, width], [21, height]);
+mesh = StructuredMesh([17, width], [9, height]);
 globalCoord = mesh.coordinates();
 
 topCornerNode = find(globalCoord(2, :) == height & globalCoord(1, :) == 0);
@@ -91,7 +91,7 @@ initial = volumeFraction*ones(size(fem.designPar));
 topOpt = MechComplianceProblem(fem, options, volumeFraction);
 
 job = Job(topOpt, initial, opt);
-%jobManager.add(job);
+jobManager.add(job);
 %%
 topLeftNodes = find(globalCoord(1, :) == 0 & globalCoord(2, :) <= 0.1 &  ...
     globalCoord(2, :) >= 0.075);
@@ -147,7 +147,7 @@ output = struct(...
     'nodes', bottomLeftNode, ...
     'type', 'dummy', ...
     'name', 'josse', ...
-    'value', -10000, ...
+    'value', -1e3, ...
     'components', [1, 0], ...
     'timeSteps', 1:timeSteps ...
 );
@@ -190,11 +190,3 @@ jobManager.add(job);
 jobManager.runAll();
 %%
 jobManager.plotAll();
-%%
-saveAnswer = questdlg("Would you like to save all jobs?", "Yes", "No");
-switch saveAnswer
-    case "Yes"
-        jobManager.saveAll();
-    case "No"
-        disp("Did not save the jobs");
-end
