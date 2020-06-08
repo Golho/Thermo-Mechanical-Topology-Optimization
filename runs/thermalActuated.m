@@ -15,13 +15,13 @@ P = 1;
 k = 5e5;
 tFinal = 600;
 
-material_1 = Material(1, 1.767e6, 1e-3*eye(3), 3e2, 0.45, 0*ones(3, 1));
-material_2 = Material(1, 1.767e6, 0.22*eye(3), 1.1e9, 0.45, 8e-5*ones(3, 1));
-
+material_1 = Material(1, 1.767e6, 1e-3*eye(3), 3e2, 0.45, 0);
+material_2 = Material(1e3, 1.767e3, 0.22*eye(3), 1.1e9, 0.45, 8e-5);
+materials = [material_1, material_2];
 %%
 width = 0.1;
 height = 0.1;
-mesh = StructuredMesh([151, width], [151, height]);
+mesh = StructuredMesh([31, width], [31, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -82,7 +82,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-mechFEM = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+mechFEM = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 mechFEM.addBoundaryCondition(fixed);
 mechFEM.addBoundaryCondition(symmetry);
@@ -91,31 +91,32 @@ mechFEM.addBoundaryCondition(spring);
 mechFEM.addBodyCondition(body);
 
 mechFEM.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 1);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, 3, 1);
 mechFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-heatFEM = OptThermoMechStructured(mechFEM, mesh, tFinal, timeSteps, 1);
+heatFEM = OptThermoMechStructured(mechFEM, numel(materials), mesh, tFinal, timeSteps, 1);
 
 heatFEM.addBoundaryCondition(tempPrescribed);
 heatFEM.addBodyCondition(body);
 
 heatFEM.setMaterial(material_2);
 
-[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 1, 1);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, 1, 1);
 heatFEM.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 options = struct(...
-    'heavisideFilter', true, ...
+    'heavisideFilter', false, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
 %%
 coupledFEM = heatFEM;
-topOpt = ThermallyActuatedProblem(coupledFEM, options, volumeFraction);
+massLimit = volumeFraction * sum(heatFEM.volumes * material_2.density);
+topOpt = ThermallyActuatedProblem(coupledFEM, options, massLimit);
 initial = volumeFraction*ones(size(heatFEM.designPar));
 
 job = Job(topOpt, initial, opt);

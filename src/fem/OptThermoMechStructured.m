@@ -35,7 +35,7 @@ classdef OptThermoMechStructured < OptHeatFEMStructured
             startTime = tic;
             if nargin < 4
                 dT0dx = sparse(size(obj.temperatures, 1), ...
-                    length(obj.designPar));
+                    numel(obj.designPar));
             end
             
             deltaT = obj.tFinal / (obj.timeSteps - 1);
@@ -45,6 +45,7 @@ classdef OptThermoMechStructured < OptHeatFEMStructured
             adjoints_temp = obj.solveAdjoint(adjointLoads_temp);
             
             chainGrad = (-adjoints_temp(:, 1)' * obj.B * dT0dx)';
+            chainGrad = reshape(chainGrad, size(obj.designPar));
             
             k_TT0 = obj.getElementBaseMatrix(1, 'D');
             c0 = obj.getElementBaseMatrix(1, 'cp');
@@ -57,31 +58,35 @@ classdef OptThermoMechStructured < OptHeatFEMStructured
             u_e = obj.mechFEM.displacements(edof, :);
             adjoint_temp_e = adjoints_temp(enod, :);
             adjoint_disp_e = adjoints_disp(edof, :);
-            dR_Tdx = zeros(size(adjoint_temp_e));
-            dR_udx = zeros(size(adjoint_disp_e));
             
-            for e = 1:length(chainGrad)
+            adjoint_dR_Tdx = zeros(size(obj.designPar, 1), 1);
+            adjoint_dR_udx = zeros(size(obj.designPar, 1), 1);
+            
+            for e = 1:size(chainGrad, 2)
                 enod(:) = obj.Enod(:, e);
                 edof(:) = obj.mechFEM.Edof(:, e);
                 T_e(:) = obj.temperatures(enod, :);
                 u_e(:) = obj.mechFEM.displacements(edof, :);
-                adjoint_temp_e = adjoints_temp(enod, :);
-                adjoint_disp_e = adjoints_disp(edof, :);
+                adjoint_temp_e(:) = adjoints_temp(enod, :);
+                adjoint_disp_e(:) = adjoints_disp(edof, :);
             
-                dkappadphi = obj.conductivityDer(obj.designPar(e));
-                dcpdphi = obj.heatCapacityDer(obj.designPar(e));
-
-                dEdphi = obj.mechFEM.stiffnessDer(obj.mechFEM.designPar(e));
-                dalphadphi = obj.mechFEM.thermalExpDer(obj.mechFEM.designPar(e));
-
-                dR_Tdx(:) = (deltaT*obj.theta*dkappadphi*k_TT0 + dcpdphi*c0) * ...
-                    T_e(:, 2:end) - ...
-                    (deltaT*(obj.theta-1)*dkappadphi*k_TT0 + dcpdphi*c0) * ...
-                    T_e(:, 1:end-1);
+                d = obj.designPar(:, e);
+                dkappadphi = obj.conductivityDer(d);
+                dcpdphi = obj.heatCapacityDer(d);
+                dEdphi = obj.mechFEM.stiffnessDer(d);
+                dalphadphi = obj.mechFEM.thermalExpDer(d);
                 
-                dR_udx(:) = dEdphi*k_uu0*u_e - dalphadphi*k_uT0*T_e;
-                chainGrad(e) = chainGrad(e) - sum(dot(adjoint_temp_e, dR_Tdx)) - ...
-                    sum(dot(adjoint_disp_e, dR_udx));
+                adjoint_dR_Tdx(:) = dkappadphi * sum(dot(adjoint_temp_e, ...
+                        deltaT*obj.theta*k_TT0*T_e(:, 2:end) - deltaT*(obj.theta-1)*k_TT0*T_e(:, 1:end-1)...
+                    )) + ...
+                    dcpdphi * sum(dot(adjoint_temp_e, c0 * (T_e(:, 2:end) - T_e(:, 1:end-1))));
+                
+                adjoint_dR_udx(:) = (...
+                    dEdphi * sum(dot(adjoint_disp_e, k_uu0 * u_e)) - ...
+                    dalphadphi * sum(dot(adjoint_disp_e, k_uT0 * T_e)) ...
+                );
+
+                chainGrad(:, e) = chainGrad(:, e) - adjoint_dR_Tdx - adjoint_dR_udx;
             end
             fprintf("Computed gradient term:\t\t%f secs\n", toc(startTime));
         end

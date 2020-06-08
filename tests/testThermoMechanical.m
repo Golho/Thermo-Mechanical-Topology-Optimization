@@ -15,7 +15,7 @@ tFinal = 1000;
 k = 400;
 cp = 385;
 rho = 8900;
-alpha = 16.4e-6*ones(3, 1);
+alpha = 16.4e-6;
 m = Material(rho, cp, k*eye(3), 110e9, 0.34, alpha);
 
 % Create boundary conditions

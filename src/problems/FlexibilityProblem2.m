@@ -3,18 +3,18 @@ classdef FlexibilityProblem2 < TopOptProblem
     %   An dummy must be prescribed on the FEM model with the name "output"
     
     methods
-        function obj = FlexibilityProblem2(femModel, options, volumeFraction, intermediateFunc)
+        function obj = FlexibilityProblem2(femModel, options, massLimit, intermediateFunc)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin < 4
                 intermediateFunc = [];
             end
             obj = obj@TopOptProblem(femModel, options, intermediateFunc);
-            obj.options.volumeFraction = volumeFraction;
+            obj.options.massLimit = massLimit;
+            [obj.options.densityFunc, obj.options.densityDerFunc] = densitySIMP(obj.options.materials, 1);
         end
         
         function g = objective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
             filteredPar = obj.filterParameters(designPar);
@@ -29,7 +29,6 @@ classdef FlexibilityProblem2 < TopOptProblem
         end
         
         function dgdphi = gradObjective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             filteredPar = obj.filterParameters(designPar);
 
             I = obj.fem.getDummy("josse");
@@ -43,14 +42,14 @@ classdef FlexibilityProblem2 < TopOptProblem
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads);
             
-            for e = 1:length(filteredPar)
-                d = filteredPar(e);
+            for e = 1:size(filteredPar, 2)
+                d = filteredPar(:, e);
                 dEdphi = obj.fem.stiffnessDer(d);
                 k0 = obj.fem.getElementBaseMatrix(e, 'D');
                 u_e = obj.fem.displacements(obj.fem.Edof(:, e), :);
-                kT = dEdphi * k0*u_e * -outputComp / inputComp^2;
+                kT = k0*u_e * -outputComp / inputComp^2;
                 
-                dgdphi(e) = dgdphi(e) + sum(dot(u_e, kT));
+                dgdphi(:, e) = dgdphi(:, e) + dEdphi * sum(dot(u_e, kT));
             end
             
             
@@ -58,16 +57,15 @@ classdef FlexibilityProblem2 < TopOptProblem
         end
         
         function gs = constraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             filteredPar = obj.filterParameters(designPar);
-            gs = dot(filteredPar, obj.fem.volumes) / (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
+            densities = obj.options.densityFunc(filteredPar);
+            gs = dot(densities, obj.fem.volumes) / obj.options.massLimit - 1;
         end
         
         function dgsdphi = gradConstraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            %filteredPar = obj.filterParameters(designPar);
-
-            dgsdphi = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
+            filteredPar = obj.filterParameters(designPar);
+            dgsdphi = obj.options.densityDerFunc(filteredPar) .* obj.fem.volumes' / obj.options.massLimit;
+            
             dgsdphi(:) = obj.filterGradient(dgsdphi, designPar);
         end
     end

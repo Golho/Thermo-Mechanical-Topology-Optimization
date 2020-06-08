@@ -17,9 +17,9 @@ k = 0;
 tFinal = 20000;
 angle = pi/4;
 
-material_1 = Material(1, 1.767e6, 1e-3*eye(3), 3e2, 0.45, 0*ones(3, 1));
-material_2 = Material(1, 1.767e6, 0.33*eye(3), 0.2e9, 0.45, 230e-6*ones(3, 1));
-
+material_1 = Material(1, 1.767e6, 1e-3*eye(3), 3e2, 0.45, 0);
+material_2 = Material(1000, 1.767e3, 0.33*eye(3), 0.2e9, 0.45, 230e-6);
+materials = [material_1, material_2];
 %%
 width = 0.1;
 height = 0.1;
@@ -93,7 +93,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-stiffFEM = OptMechFEMStructured(mesh, 1, "plane stress");
+stiffFEM = OptMechFEMStructured(numel(materials), mesh, 1, "plane stress");
 
 fixed2 = struct(...
     'nodes', rightCornerExpanded, ...
@@ -126,7 +126,7 @@ stiffFEM.addBodyCondition(body);
 
 stiffFEM.setMaterial(material_2);
 
-mechFEM = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+mechFEM = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 mechFEM.addBoundaryCondition(fixed);
 mechFEM.addBoundaryCondition(symmetry);
@@ -141,11 +141,12 @@ options = struct(...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
 %%
+massLimit = volumeFraction * sum(mechFEM.volumes*material_2.density);
 p_kappa = 3;
 p_cp = 1;
 for p_E = [3]
@@ -153,7 +154,7 @@ for p_E = [3]
         for penalty = 100%[1e-5, 1e-4, 1e-3]
             mechFEM_i = copy(mechFEM);
 
-            heatFEM_i = OptThermoMechStructured(mechFEM_i, mesh, tFinal, timeSteps, 1);
+            heatFEM_i = OptThermoMechStructured(mechFEM_i, numel(materials), mesh, tFinal, timeSteps, 1);
 
             heatFEM_i.addBoundaryCondition(tempPrescribed);
             heatFEM_i.addBodyCondition(body);
@@ -161,15 +162,15 @@ for p_E = [3]
             heatFEM_i.setMaterial(material_2);
             stiffFEM.setMaterial(material_2);
 
-            [E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, p_E, p_alpha);
+            [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
             stiffFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
             mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-            [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, p_kappa, p_cp);
+            [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
             heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
             coupledFEM = heatFEM_i;
-            topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, volumeFraction, u_max, penalty);
+            topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, massLimit, u_max, penalty);
             initial = volumeFraction*ones(size(heatFEM_i.designPar));
 
             job = Job(topOpt, initial, opt);

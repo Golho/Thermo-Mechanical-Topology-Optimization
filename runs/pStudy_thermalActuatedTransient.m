@@ -4,23 +4,27 @@ jobManager = JobManager();
 
 opt.maxtime = 20*60;
 opt.verbose = 1;
-opt.ftol_rel = 1e-8;
+opt.ftol_rel = 1e-6;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 
 deltaTemp = 100;
-timeSteps = 1;
+tFinal = 1;
+timeSteps = 20;
 radius = 10e-6;
 k = 65/10e-6;
 volumeFraction = 0.25;
 
-void = Material(0, 1, 1*eye(3), 100e3, 0.3, 0);
-material_2 = Material(1, 1, 1*eye(3), 100e9, 0.3, 2e-5);
-materials = [void, material_2];
+void = Material(1, 1e6, 0.01*eye(3), 100e3, 0.3, 0);
+material_1 = Material(2000, 1e3, 10*eye(3), 100e9, 0.3, 4e-5);
+material_2 = Material(1000, 1e3, 10*eye(3), 100e9, 0.3, 2e-5);
+
+materials = [void, material_1, material_2];
+
 %%
 width = 400e-6;
 height = 200e-6;
-mesh = StructuredMesh([161, width], [81, height]);
+mesh = StructuredMesh([81, width], [41, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -56,11 +60,17 @@ output = struct( ...
     'nodes', bottomRightNode, ...
     'type', 'dummy', ...
     'name', 'josse', ...
-    'value', 1e7, ...
+    'value', 1e4, ...
     'components', [1, 0], ...
     'timeSteps', timeSteps ...
 );
 
+flux = struct(...
+    'nodes', topCornerExpanded, ...
+    'type', 'Neumann', ...
+    'value', 1, ...
+    'timeSteps', 1:timeSteps ...
+);
 
 % Create body conditions
 body = struct(...
@@ -77,6 +87,7 @@ mechFEM.addBodyCondition(body);
 mechFEM.setTemperatures(deltaTemp*ones(size(mechFEM.temperatureChanges)));
 
 mechFEM.setMaterial(material_2);
+massLimit = volumeFraction * sum(mechFEM.volumes*material_2.density);
 
 options = struct(...
     'heavisideFilter', false, ...
@@ -84,43 +95,35 @@ options = struct(...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
     'materials', materials, ...
-    'plot', false ...
+    'plot', true ...
 );
 
 %%
-massLimit = volumeFraction * sum(mechFEM.volumes*material_2.density);
-initial = zeros(size(mechFEM.designPar));
-initial(1, :) = 1;
-
-
 p_kappa = 3;
 p_cp = 1;
 for p_E = [3]
     for p_alpha = [3]
-        for k = 65*[1e4]
-            for penalty = [0]
-                spring = struct( ...
-                    'nodes', bottomRightNode, ...
-                    'type', 'Robin', ...
-                    'value', k, ...
-                    'components', [1, 0], ...
-                    'timeSteps', 1:timeSteps ...
-                );
+        mechFEM_i = copy(mechFEM);
 
-                mechFEM_i = copy(mechFEM);
+        heatFEM_i = OptThermoMechStructured(mechFEM_i, numel(materials), mesh, tFinal, timeSteps, 1);
 
-                mechFEM_i.addBoundaryCondition(spring);
+        heatFEM_i.addBoundaryCondition(flux);
+        heatFEM_i.addBodyCondition(body);
 
-                [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
-                mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
+        heatFEM_i.setMaterial(material_2);
 
-                topOpt = ThermallyActuatedProblemUniform(mechFEM_i, options, massLimit, penalty);
-                initial = volumeFraction*ones(size(mechFEM.designPar));
+        [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
+        mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-                job = Job(topOpt, initial, opt);
-                jobManager.add(job);
-            end
-        end
+        [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
+        heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
+
+        coupledFEM = heatFEM_i;
+        topOpt = ThermallyActuatedProblem(coupledFEM, options, massLimit);
+        initial = volumeFraction * ones(size(heatFEM_i.designPar));
+
+        job = Job(topOpt, initial, opt);
+        jobManager.add(job);
     end
 end
 %%

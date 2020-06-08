@@ -3,8 +3,10 @@ timeSteps = 1;
 volumeFraction = 0.4;
 radius = 0.025;
 
-material_1 = Material(1, 1e6, 0.1*eye(3), 1e1, 0.25, 0*ones(3, 1));
-material_2 = Material(1, 1e6, 10*eye(3), 1e9, 0.25, 5e-5*ones(3, 1));
+material_1 = Material(1, 1e6, 0.1*eye(3), 1e1, 0.25, 0);
+material_2 = Material(2, 1e6, 10*eye(3), 1e9, 0.25, 5e-5);
+
+materials = [material_1, material_2];
 %% Structured mesh
 isnear = @(x, a) abs(x-a) < 1e-3;
 mesh = StructuredMesh([5, 0.1], [5, 0.1]);
@@ -38,7 +40,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-fem = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+fem = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(centerForce);
@@ -48,19 +50,21 @@ temps = 20*ones(size(fem.temperatureChanges));
 fem.setTemperatures(temps);
 
 fem.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, 3, 3);
 fem.addInterpFuncs(E, EDer, alpha, alphaDer);
 
 options = struct(...
-    "heavisideFilter", true, ...
+    "heavisideFilter", false, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 %%
-topOpt = MechComplianceProblem(fem, options, 0.4);
+massLimit = volumeFraction * sum(fem.volumes*material_2.density);
+
+topOpt = MechComplianceProblem(fem, options, massLimit);
 initial = rand(size(fem.designPar));
 g(1) = topOpt.objective(initial)
 
@@ -90,7 +94,7 @@ spring = struct(...
 fem.addBoundaryCondition(output);
 fem.addBoundaryCondition(spring);
 %%
-topOpt = FlexibilityProblem(fem, options, 0.4, 0.0005);
+topOpt = FlexibilityProblem(fem, options, massLimit, 0.0005);
 initial = rand(size(fem.designPar));
 g(1) = topOpt.objective(initial)
 

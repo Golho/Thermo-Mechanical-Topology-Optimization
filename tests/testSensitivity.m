@@ -5,7 +5,8 @@ volumeFraction = 0.4;
 radius = 0.025;
 
 material_1 = Material(1, 1e6, 0.1*eye(3));
-material_2 = Material(1, 1e6, 10*eye(3));
+material_2 = Material(2, 2e6, 10*eye(3));
+materials = [material_1, material_2];
 %% Structured mesh
 isnear = @(x, a) abs(x-a) < 1e-3;
 mesh = StructuredMesh([5, 0.1], [5, 0.1]);
@@ -37,7 +38,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-fem = OptHeatFEMStructured(mesh, tFinal, timeSteps);
+fem = OptHeatFEMStructured(numel(materials), mesh, tFinal, timeSteps);
 
 fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(fluxCorner);
@@ -46,24 +47,26 @@ fem.addBodyCondition(body);
 fem.setMaterial(material_2);
 
 options = struct(...
-    'heavisideFilter', true, ...
+    'heavisideFilter', false, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 %%
-[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, 3, 3);
 fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
-topOpt = HeatComplianceProblem(fem, options, 0.4);
+
+massLimit = volumeFraction * sum(fem.volumes*material_2.density);
+topOpt = HeatComplianceProblem(fem, options, massLimit);
 initial = rand(size(fem.designPar));
 g(1) = topOpt.objective(initial)
 
 errors = topOpt.testGradients(initial, 1e-6)
 assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
-topOpt = MaxTemperatureProblem(fem, options, 0.4);
+topOpt = MaxTemperatureProblem(fem, options, massLimit);
 topOpt.normalize(initial);
 g(1) = topOpt.objective(initial)
 
@@ -95,7 +98,7 @@ body = struct(...
     'physicalName', 'solid' ...
 );
 
-fem = OptHeatFEM(gmsh, Elements.QUA_4, tFinal, timeSteps);
+fem = OptHeatFEM(numel(materials), gmsh, Elements.QUA_4, tFinal, timeSteps);
 fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(flux);
 fem.addBodyCondition(body);
@@ -103,24 +106,26 @@ fem.addBodyCondition(body);
 fem.setMaterial(material_2);
 
 options = struct(...
-    'heavisideFilter', true, ...
+    'heavisideFilter', false, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 %%
-[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, 3, 3);
 fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
-topOpt = HeatComplianceProblem(fem, options, 0.4);
+
+massLimit = volumeFraction * sum(fem.volumes*material_2.density);
+topOpt = HeatComplianceProblem(fem, options, massLimit);
 initial = rand(size(fem.designPar));
 g(1) = topOpt.objective(initial)
 
 errors = topOpt.testGradients(initial, 1e-6)
 assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
-topOpt = MaxTemperatureProblem(fem, options, 0.4);
+topOpt = MaxTemperatureProblem(fem, options, massLimit);
 topOpt.normalize(initial);
 g(1) = topOpt.objective(initial)
 

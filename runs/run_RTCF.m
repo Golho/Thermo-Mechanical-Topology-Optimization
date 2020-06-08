@@ -37,31 +37,35 @@ body = struct(...
 );
 
 material_1 = Material(1, 5e5, 0.1*eye(3));
-material_2 = Material(1, 1e6, 10*eye(3));
+material_2 = Material(1e3, 1e3, 10*eye(3));
+
+materials = [material_1, material_2];
 
 options = struct(...
-    'p_kappa', 3, ...
-    'p_cp', 3, ...
-    'filter', true, ...
+    'heavisideFilter', false, ...
+    'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
 opt.maxtime = 20*60;
 opt.verbose = 1;
-opt.ftol_rel = 1e-6;
+opt.ftol_rel = 1e-8;
 opt.algorithm = NLOPT_LD_MMA;
 %%
 for tFinal = [1000]
-    fem = OptHeatFEMStructured(mesh, tFinal, timeSteps);
+    fem = OptHeatFEMStructured(numel(materials), mesh, tFinal, timeSteps);
     fem.addBoundaryCondition(fluxCorner);
     fem.addBodyCondition(body);
 
     fem.setMaterial(material_2);
+    [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, 3, 3);
+    fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
-    topOpt = MaxTemperatureProblem(fem, options, volumeFraction);
+    massLimit = volumeFraction * sum(fem.volumes * material_2.density);
+    topOpt = MaxTemperatureProblem(fem, options, massLimit);
     initial = volumeFraction*ones(size(fem.designPar));
     topOpt.normalize(initial);
     job = Job(topOpt, initial, opt);

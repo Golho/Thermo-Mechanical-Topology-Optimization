@@ -4,7 +4,7 @@ classdef ThermallyActuatedProblemTransient < TopOptProblem
     
     methods
         function obj = ThermallyActuatedProblemTransient(flexFemModel, stiffFemModel, ...
-                dummyName, options, volumeFraction, u_max, intermediateFunc)
+                dummyName, options, massLimit, u_max, intermediateFunc)
             %THERMALLYACTUATEDPROBLEM Construct an instance of this class
             %   Detailed explanation goes here
             if nargin < 7
@@ -14,16 +14,15 @@ classdef ThermallyActuatedProblemTransient < TopOptProblem
             stiffFemModel.assemble();
             obj.options.stiffFemModel = stiffFemModel;
             obj.options.dummyName = dummyName;
-            obj.options.volumeFraction = volumeFraction;
+            obj.options.massLimit = massLimit;
             obj.options.u_max = u_max;
+            [obj.options.densityFunc, obj.options.densityDerFunc] = ...
+                densitySIMP(obj.options.materials, 1);
         end
         
         function error = objective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            designPar = obj.filterParameters(designPar);
-            
             obj.fem.reassemble(designPar);
             obj.fem.solve();
             
@@ -34,7 +33,6 @@ classdef ThermallyActuatedProblemTransient < TopOptProblem
         end
         
         function dgdphi = gradObjective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %filteredPar = obj.filterParameters(designPar);
 
             I = obj.fem.mechFEM.getDummy(obj.options.dummyName);
@@ -46,44 +44,28 @@ classdef ThermallyActuatedProblemTransient < TopOptProblem
             adjointLoads_mech = 2*diff / obj.options.u_max^2;
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech);
-            
-            dgdphi(:) = obj.filterGradient(dgdphi, designPar);
         end
         
         function gs = constraint0(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            filteredPar = obj.filterParameters(designPar);
             % Stiff FEM model can be a mech FEM model
             st = obj.options.stiffFemModel;
-            st.reassemble(filteredPar);
+            st.reassemble(designPar);
             st.solve();
             
             gs = st.displacements' * st.K_tot * st.displacements / obj.options.u_max - 1;
         end
         
         function dgsdphi = gradConstraint0(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            
-            filteredPar = obj.filterParameters(designPar);
-            
-            dgsdphi = obj.gradCompliance(filteredPar) / obj.options.u_max;
-
-            dgsdphi(:) = obj.filterGradient(dgsdphi, designPar);
+            dgsdphi = obj.gradCompliance(designPar) / obj.options.u_max;
         end
         
         function gs = constraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            filteredPar = obj.filterParameters(designPar);
-            % Stiff FEM model can be a mech FEM model
-            gs = dot(filteredPar, obj.fem.volumes) / (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
+            densities = obj.options.densityFunc(designPar);
+            gs = dot(densities, obj.fem.volumes) / obj.options.massLimit - 1;
         end
         
         function dgsdphi = gradConstraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            %filteredPar = obj.filterParameters(designPar);
-            dgsdphi = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
-
-            dgsdphi(:) = obj.filterGradient(dgsdphi, designPar);
+            dgsdphi = obj.options.densityDerFunc(designPar) .* obj.fem.volumes' / obj.options.massLimit;
         end
         
         function plotResults(obj)

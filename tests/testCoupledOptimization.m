@@ -12,11 +12,13 @@ timeSteps = 20;
 volumeFraction = 0.2;
 radius = 1e-5;
 P = 1;
-k = 500e3;
+k = 500e7;
 tFinal = 0.2;
 
-material_1 = Material(1, 1e6, 1e-3*eye(3), 1e3, 0.31, 0*ones(3, 1));
-material_2 = Material(1, 1e6, 10*eye(3), 1e9, 0.31, 1.5e-5*ones(3, 1));
+void = Material(1, 1e7, 0.01*eye(3), 1e3, 0.4, 0);
+copper = Material(8900, 390, 402*eye(3), 130e9, 0.355, 23e-5);
+aluminium = Material(2700, 240, 88*eye(3), 70e9, 0.335, 16e-5);
+materials = [void, aluminium, copper];
 
 %%
 width = 5e-4;
@@ -52,7 +54,7 @@ output = struct( ...
     'nodes', rightCornerExpanded, ...
     'type', 'dummy', ...
     'name', 'josse', ...
-    'value', 1e8, ...
+    'value', 1e6, ...
     'components', [1, 0], ...
     'timeSteps', timeSteps ...
 );
@@ -75,7 +77,7 @@ tempPrescribed = struct( ...
 heatInput = struct(...
     'nodes', topCornerExpanded, ...
     'type', 'Neumann', ...
-    'value', 1, ...
+    'value', 100, ...
     'timeSteps', 1:timeSteps ...
 );
 
@@ -84,7 +86,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-mechFEM = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+mechFEM = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 mechFEM.addBoundaryCondition(fixed);
 mechFEM.addBoundaryCondition(symmetry);
@@ -92,15 +94,16 @@ mechFEM.addBoundaryCondition(output);
 mechFEM.addBoundaryCondition(spring);
 mechFEM.addBodyCondition(body);
 
-mechFEM.setMaterial(material_2);
+mechFEM.setMaterial(copper);
+massLimit = volumeFraction * sum(mechFEM.volumes*aluminium.density);
 
 options = struct(...
     'heavisideFilter', false, ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
 %%
@@ -110,22 +113,22 @@ p_cp = 1;
 for p_alpha = [1]
     mechFEM_i = copy(mechFEM);
     
-    heatFEM_i = OptThermoMechStructured(mechFEM_i, mesh, tFinal, timeSteps, 1);
+    heatFEM_i = OptThermoMechStructured(mechFEM_i, numel(materials), mesh, tFinal, timeSteps, 1);
 
     heatFEM_i.addBoundaryCondition(tempPrescribed);
     heatFEM_i.addBoundaryCondition(heatInput);
     heatFEM_i.addBodyCondition(body);
 
-    heatFEM_i.setMaterial(material_2);
+    heatFEM_i.setMaterial(copper);
     
-    [E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, p_E, p_alpha);
+    [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
     mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-    [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, p_kappa, p_cp);
+    [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
     heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
     coupledFEM = heatFEM_i;
-    topOpt = ThermallyActuatedProblem(coupledFEM, options, volumeFraction);
+    topOpt = ThermallyActuatedProblem(coupledFEM, options, massLimit);
     initial = volumeFraction*ones(size(heatFEM_i.designPar));
 
     job = Job(topOpt, initial, opt);

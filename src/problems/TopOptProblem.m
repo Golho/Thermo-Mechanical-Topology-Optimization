@@ -15,12 +15,22 @@ classdef (Abstract) TopOptProblem < handle
             'designFilter', [], ...
             'filterRadius', [], ...
             'filterWeightFunction', [], ...
-            'material_1', [], ...
-            'material_2', [] ...
+            'materials', [], ...
+            'plot', [] ...
         );
         
         intermediateFunc
         heaviside
+        iteration = 0;
+    end
+    
+    properties(Access = protected)
+        designFig
+        curveFig
+        designPlot
+        curvePlots
+        
+        nbrConstraints
     end
     
     methods(Abstract)
@@ -32,8 +42,9 @@ classdef (Abstract) TopOptProblem < handle
     methods
         function obj = TopOptProblem(femModel, options, intermediateFunc)
             obj.fem = femModel;
+            obj.nbrConstraints = numel(obj.nlopt_constraints);
 
-            if nargin == 5
+            if nargin == 3
                 obj.intermediateFunc = intermediateFunc;
             end
             
@@ -44,22 +55,57 @@ classdef (Abstract) TopOptProblem < handle
             % Use indexing of obj.options to force similar structures
             obj.options(1) = options;
             obj.fem.assemble();
+            
+            if obj.options.plot
+                obj.designFig = figure;
+                if femModel.spatialDimensions == 2
+                    title("Design at iteration 0");
+                    obj.designPlot = plotDesign(femModel.Ex, femModel.Ey, femModel.designPar);
+                end
+                obj.curveFig = figure;
+                obj.curvePlots = cell(1, 1 + obj.nbrConstraints);
+                for i = 1:(1+obj.nbrConstraints)
+                    subplot(1 + obj.nbrConstraints, 1, i);
+                    obj.curvePlots{i} = plot(0, 0);
+                    title("g_" + (i-1));
+                end
+            end
         end
         
         function [val, gradient] = nlopt_objective(obj, designPar)
+            obj.iteration = obj.iteration + 1;
+            
+            designPar = reshape(designPar, [], size(obj.fem.Enod, 2));
+            filteredPar = obj.filterParameters(designPar);
+
             disp("Calling objective function");
-            val = obj.objective(designPar);
+            val = obj.objective(filteredPar);
+            
+            if obj.options.plot
+                figure(obj.curveFig);
+                subplot(1 + numel(obj.nlopt_constraints), 1, 1)
+                obj.curvePlots{1}.XData(end+1) = obj.iteration;
+                obj.curvePlots{1}.YData(end+1) = val;
+
+                if obj.fem.spatialDimensions == 2
+                    figure(obj.designFig);
+                    title("Design at iteration " + obj.iteration);
+                    plotDesign(obj.fem.Ex, obj.fem.Ey, filteredPar, obj.designPlot);
+                end
+            end
             
             if obj.options.heavisideFilter
-                obj.heaviside.update(designPar);
+                obj.heaviside.update(filteredPar);
             end
             
             if ~isempty(obj.intermediateFunc)
-                obj.intermediateFunc(obj.fem, designPar);
+                obj.intermediateFunc(obj.fem, filteredPar);
             end
             
             if nargout > 1
-                gradient = obj.gradObjective(designPar);
+                gradient = obj.gradObjective(filteredPar);    
+                gradient(:) = obj.filterGradient(gradient, designPar);
+                gradient = reshape(gradient, 1, []);
             end
         end
         
@@ -73,10 +119,22 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function [val, gradient] = nlopt_constraint_i(obj, iConstraint, designPar)
-            val = obj.("constraint" + iConstraint)(designPar);
+            designPar = reshape(designPar, [], size(obj.fem.Enod, 2));
+            filteredPar = obj.filterParameters(designPar);
+            val = obj.("constraint" + iConstraint)(filteredPar);
+            
+            if obj.options.plot
+                figure(obj.curveFig);
+                subplot(1 + numel(obj.nlopt_constraints), 1, iConstraint+1)
+                obj.curvePlots{iConstraint+1}.XData(end+1) = obj.iteration;
+                obj.curvePlots{iConstraint+1}.YData(end+1) = val;
+            end
+            
             fprintf("Calling constraint(%d): %f\n", iConstraint, val);
             if (nargout > 1)
-                gradient = obj.("gradConstraint" + iConstraint)(designPar);
+                gradient = obj.("gradConstraint" + iConstraint)(filteredPar);
+                gradient(:) = obj.filterGradient(gradient, designPar);
+                gradient = reshape(gradient, 1, []);
             end
         end
         
@@ -91,10 +149,10 @@ classdef (Abstract) TopOptProblem < handle
                 if ~obj.computedWeights
                     obj.weights = obj.fem.computeWeights(...
                         obj.options.filterRadius, ...
-                        obj.options.filterWeightFunction);
+                        obj.options.filterWeightFunction)';
                     obj.computedWeights = true;
                 end
-                filteredPar = obj.weights * filteredPar;
+                filteredPar = designPar * obj.weights;
             end
             
             if obj.options.heavisideFilter
@@ -109,17 +167,17 @@ classdef (Abstract) TopOptProblem < handle
                 if ~obj.computedWeights
                     obj.weights = obj.fem.computeWeights(...
                         obj.options.filterRadius, ...
-                        obj.options.filterWeightFunction);
+                        obj.options.filterWeightFunction)';
                     obj.computedWeights = true;
                 end
 
-                filteredGrad = obj.weights * filteredGrad;
-                filteredPar = obj.weights * filteredPar;
+                filteredGrad = filteredGrad * obj.weights;
+                filteredPar = filteredPar * obj.weights;
             end
             
             if obj.options.heavisideFilter
                 filteredGrad = obj.heaviside.gradFilter(filteredPar).*filteredGrad;
-                filteredPar = obj.heaviside.filter(filteredPar);
+                %filteredPar = obj.heaviside.filter(filteredPar);
             end
             %filteredGrad = 1./max(designPar, 0.01) .* obj.weights * (designPar.*grad);
         end
@@ -128,16 +186,17 @@ classdef (Abstract) TopOptProblem < handle
             if nargin < 3
                 h = 1e-8;
             end
-            dgdphi = numGrad(@obj.objective, designPar, h);
+            dgdphi = numGrad(@obj.nlopt_objective, designPar, h);
 
             % Analytical gradient
-            der_g = obj.gradObjective(designPar);
+            [~, der_g] = obj.nlopt_objective(designPar);
             objError = norm(dgdphi - der_g) / norm(dgdphi);
             c = 1;
-            constraintErrors = [];
-            while ismethod(obj, "constraint" + (c))
-                dgdphi = numGrad(@(x) obj.("constraint" + c)(x), designPar, h);
-                der_g = obj.("gradConstraint" + c)(designPar);
+            constraintFuncs = obj.nlopt_constraints;
+            constraintErrors = zeros(size(constraintFuncs));
+            for constraintFunc = constraintFuncs
+                dgdphi = numGrad(constraintFunc{:}, designPar, h);
+                [~, der_g] = constraintFunc{:}(designPar);
                 constraintErrors(c) = norm(dgdphi - der_g) / norm(dgdphi);
                 c = c + 1;
             end

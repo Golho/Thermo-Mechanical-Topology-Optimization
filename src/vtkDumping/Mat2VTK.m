@@ -5,7 +5,7 @@ if nargin < 6
     cellData = false;
 end
 
-[Nx, Ny, Nz] = size(matrix);
+[nbrScalarComponents, Nx, Ny, Nz] = size(matrix);
 
 % Open the file.
 fid = fopen(filename, "w");
@@ -31,7 +31,7 @@ switch format
         else
             fprintf(fid, "POINT_DATA %d\n", Nx*Ny*Nz);
         end
-        fprintf(fid, "SCALARS %s float 1\n", label);
+        fprintf(fid, "SCALARS %s float %d\n", label, nbrScalarComponents);
         fprintf(fid, "LOOKUP_TABLE default\n");
         fprintf(fid, "%f\n", matrix(:));
     case "binary"
@@ -51,7 +51,7 @@ switch format
         else
             fprintf(fid, "POINT_DATA %d\n", Nx*Ny*Nz);
         end
-        fprintf(fid, "SCALARS %s float 1\n", label);
+        fprintf(fid, "SCALARS %s float %d\n", label, nbrScalarComponents);
         fprintf(fid, "LOOKUP_TABLE default\n");
         fwrite(fid, matrix(:), "float", "ieee-be");
     otherwise

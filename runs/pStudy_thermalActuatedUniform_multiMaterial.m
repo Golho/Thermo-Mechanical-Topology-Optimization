@@ -2,7 +2,7 @@ clear; close all;
 
 jobManager = JobManager();
 
-opt.maxtime = 20*60;
+opt.maxtime = 40*60;
 opt.verbose = 1;
 opt.ftol_rel = 1e-8;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
@@ -10,54 +10,41 @@ opt.algorithm = NLOPT_LD_MMA;
 
 deltaTemp = 100;
 timeSteps = 1;
-radius = 10e-6;
-k = 65/10e-6;
+radius = 0.01;
+k = 65e6;
 volumeFraction = 0.25;
 
-void = Material(0, 1, 1*eye(3), 100e3, 0.3, 0);
-material_2 = Material(1, 1, 1*eye(3), 100e9, 0.3, 2e-5);
-materials = [void, material_2];
+void = Material(1, 1e7, 0.01*eye(3), 1e3, 0.4, 0);
+copper = Material(8900, 390, 402*eye(3), 130e9, 0.355, 23e-5);
+aluminium = Material(2700, 240, 88*eye(3), 70e9, 0.335, 16e-5);
+materials = [void, aluminium, copper];
 %%
-width = 400e-6;
-height = 200e-6;
-mesh = StructuredMesh([161, width], [81, height]);
+width = 0.4;
+height = 0.4;
+mesh = StructuredMesh([21, width], [21, height]);
 globalCoord = mesh.coordinates();
 
 
-topAndLeftNodes = find(globalCoord(1, :) == 0 | ...
-    globalCoord(2, :) == height);
-topRightNode = find(globalCoord(1, :) == width & globalCoord(2, :) == height);
-topCornerExpanded = find(globalCoord(2, :) == height & ...
-    globalCoord(1, :) <= width/25);
-bottomNodes = find(globalCoord(2, :) == 0);
-bottomRightNode = find(globalCoord(2, :) == 0 & globalCoord(1, :) == width);
-rightCornerExpanded = find((globalCoord(1, :) >= width*9/10 & globalCoord(2, :) == 0) | ...
-                           (globalCoord(2, :) <= height/10 & globalCoord(1, :) == width));
-rightCorner = find(globalCoord(1, :) >= width*9/10 & globalCoord(2, :) == 0);
+leftNodes = find(globalCoord(1, :) == 0);
+centerRightNodes = find(globalCoord(1, :) == width & ...
+                        globalCoord(2, :) >= height*5/11 & ...
+                        globalCoord(2, :) <= height*6/11);
 
 % Create boundary conditions
 fixed = struct(...
-    'nodes', topAndLeftNodes, ...
+    'nodes', leftNodes, ...
     'type', 'Dirichlet', ...
     'value', 0, ...
     'components', [1, 1], ...
     'timeSteps', 1:timeSteps ...
 );
 
-symmetry = struct(...
-    'nodes', bottomNodes, ...
-    'type', 'Dirichlet', ...
-    'value', 0, ...
-    'components', [0, 1], ...
-    'timeSteps', 1:timeSteps ...
-);
-
 output = struct( ...
-    'nodes', bottomRightNode, ...
+    'nodes', centerRightNodes, ...
     'type', 'dummy', ...
     'name', 'josse', ...
-    'value', 1e7, ...
-    'components', [1, 0], ...
+    'value', 1e3, ...
+    'components', [0, 1], ...
     'timeSteps', timeSteps ...
 );
 
@@ -70,13 +57,12 @@ body = struct(...
 mechFEM = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 mechFEM.addBoundaryCondition(fixed);
-mechFEM.addBoundaryCondition(symmetry);
 mechFEM.addBoundaryCondition(output);
 mechFEM.addBodyCondition(body);
 
 mechFEM.setTemperatures(deltaTemp*ones(size(mechFEM.temperatureChanges)));
 
-mechFEM.setMaterial(material_2);
+mechFEM.setMaterial(aluminium);
 
 options = struct(...
     'heavisideFilter', false, ...
@@ -88,9 +74,12 @@ options = struct(...
 );
 
 %%
-massLimit = volumeFraction * sum(mechFEM.volumes*material_2.density);
+massLimit = volumeFraction * sum(mechFEM.volumes*copper.density);
 initial = zeros(size(mechFEM.designPar));
-initial(1, :) = 1;
+initial(1, :) = volumeFraction;
+
+initial(2, 1:(size(initial, 2)/2)) = 1;
+initial(2, (size(initial, 2)/2):end) = 0;
 
 
 p_kappa = 3;
@@ -100,10 +89,10 @@ for p_E = [3]
         for k = 65*[1e4]
             for penalty = [0]
                 spring = struct( ...
-                    'nodes', bottomRightNode, ...
+                    'nodes', centerRightNodes, ...
                     'type', 'Robin', ...
                     'value', k, ...
-                    'components', [1, 0], ...
+                    'components', [0, 1], ...
                     'timeSteps', 1:timeSteps ...
                 );
 
@@ -115,7 +104,6 @@ for p_E = [3]
                 mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
                 topOpt = ThermallyActuatedProblemUniform(mechFEM_i, options, massLimit, penalty);
-                initial = volumeFraction*ones(size(mechFEM.designPar));
 
                 job = Job(topOpt, initial, opt);
                 jobManager.add(job);
@@ -128,7 +116,7 @@ jobManager.runAll();
 %%
 jobManager.plotAll();
 %%
-saveAnswer = questdlg("Would you like to save all jobs?", "Yes", "No");
+saveAnswer = questdlg("Would you like to save all jobs?", "Yes?");
 switch saveAnswer
     case "Yes"
         jobManager.saveAll();

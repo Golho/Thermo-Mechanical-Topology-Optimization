@@ -33,10 +33,11 @@ classdef Job < handle
             obj.optConf.solverOptions.fc = obj.problem.nlopt_constraints();
             
             tic;
-            [optDesign, fmin, returnCode] = nlopt_optimize(obj.optConf.solverOptions, obj.initialSolution);
+            [optDesign, fmin, returnCode] = nlopt_optimize(obj.optConf.solverOptions, reshape(obj.initialSolution, 1, []));
             duration = toc;
 
-            obj.result.finalSolution = optDesign;
+            obj.result.finalSolution = reshape(optDesign, size(obj.problem.fem.designPar));
+            obj.result.finalSolutionFiltered = obj.problem.filterParameters(obj.result.finalSolution);
             obj.result.fmin = fmin;
             obj.result.returnCode = returnCode;
             obj.result.solverTime = duration;
@@ -53,7 +54,7 @@ classdef Job < handle
             Ey = obj.problem.fem.Ey;
             Ez = obj.problem.fem.Ey;
                
-            saveMatrix = [Ex; Ey; Ez; obj.result.finalSolution'];
+            saveMatrix = [Ex; Ey; Ez; obj.result.finalSolution];
             pathPrefix = [folderPath, obj.name];
             jobNameMat = [pathPrefix, '.mat'];
             jobNameTxt = [pathPrefix, '.txt'];
@@ -61,7 +62,7 @@ classdef Job < handle
             if isa(obj.problem.fem, "HeatFEMBase")
                 for t = 1:obj.problem.fem.timeSteps
                     obj.problem.fem.saveNodeField(pathPrefix + "temperatures" + t, ...
-                        obj.problem.fem.temperatures(:, t), "temperatures");
+                        obj.problem.fem.temperatures(:, t)', "temperatures");
                 end
             elseif isa(obj.problem.fem, "MechFEMBase")
                 for t = 1:obj.problem.fem.timeSteps
@@ -85,6 +86,24 @@ classdef Job < handle
             
             unfilteredDesign = obj.result.finalSolution;
             filteredDesign = obj.problem.filterParameters(unfilteredDesign);
+            
+            if size(obj.result.finalSolution, 1) == 2
+                % Switch the place of the first and the second design
+                % parameters, to conform with the was Paraview interpret
+                % the values
+                unfilteredDesign = flipud(unfilteredDesign);
+                filteredDesign = flipud(filteredDesign);
+            end
+            
+            optConf_save = obj.optConf;
+            % Remove the function handles from being saved
+            nosaveFields = ["min_objective", "max_objective", "fc"];
+            for field = nosaveFields
+                if isfield(optConf_save.solverOptions, field)
+                    optConf_save.solverOptions = rmfield(optConf_save.solverOptions, field);
+                end
+            end
+
             obj.problem.fem.saveElementField(pathPrefix + "designFiltered", ...
                 filteredDesign, "designFiltered");
             obj.problem.fem.saveElementField(pathPrefix + "designUnfiltered", ...
@@ -96,7 +115,7 @@ classdef Job < handle
                 "problemConfiguration", obj.problemConfiguration, ...
                 "femConfiguration", obj.femConfiguration, ...
                 "optFemConfiguration", obj.optFemConf, ...
-                "optimizerConfiguration", obj.optConf, ...
+                "optimizerConfiguration", optConf_save, ...
                 "result", obj.result ...
                 );
             save(jobNameMat, 'saveObj');
@@ -116,40 +135,67 @@ classdef Job < handle
                
             figure
             sgtitle(obj.name);
-            subplot(1, 2, 1);
+            if isa(obj.problem.fem, "OptThermoMechStructured")
+                subPlots = 3;
+            else
+                subPlots = 2;
+            end
+            iSubPlot = 1;
+            subplot(subPlots, 1, iSubPlot);
+            iSubPlot = iSubPlot + 1;
             title("Optimal density")
-            elfield2(Ex, Ey, filteredDesign);
+            if size(obj.result.finalSolution, 1) == 2
+                patchPlot = elfield2(Ex, Ey, filteredDesign(2, :));
+                patchPlot.FaceAlpha = "flat";
+                patchPlot.FaceVertexAlphaData = filteredDesign(1, :)';
+            elseif size(obj.result.finalSolution, 1) == 1
+                elfield2(Ex, Ey, filteredDesign);
+            end
             colorbar
+            caxis([0, 1]);
             
             if allTimeSteps
                 timeSteps = 0:obj.problem.fem.timeSteps-1;
             else
                 timeSteps = obj.problem.fem.timeSteps-1;
             end
-
-            subplot(1, 2, 2);
+            
             for timeStep = timeSteps
                 if isa(obj.problem.fem, "HeatFEMBase")
+                    subplot(subPlots, 1, iSubPlot);
+                    iSubPlot = iSubPlot + 1;
                     title("Terminal temperature distribution (" + timeStep + ")");
                     ed = obj.problem.fem.getElemTemp(timeStep);
                     elfield2(Ex, Ey, ed);
+                    axis equal
                     colorbar
-                elseif isa(obj.problem.fem, "MechFEMBase")
+                end
+                if isa(obj.problem.fem, "MechFEMBase") || ...
+                        isa(obj.problem.fem, "OptThermoMechStructured")
+                    subplot(subPlots, 1, iSubPlot);
+                    iSubPlot = iSubPlot + 1;
                     title("Deformed geometry (" + timeStep + ")")
-                    ed = obj.problem.fem.getElemDisp(timeStep);
+                    if isa(obj.problem.fem, "OptThermoMechStructured")
+                        ed = obj.problem.fem.mechFEM.getElemDisp(timeStep);
+                    else
+                        ed = obj.problem.fem.getElemDisp(timeStep);
+                    end
                     scaleFactor = 1;
                     newEx = Ex + scaleFactor*ed(1:2:end, :);
                     newEy = Ey + scaleFactor*ed(2:2:end, :);
-                    elfield2(newEx, newEy, filteredDesign);
+                    switch size(obj.result.finalSolution, 1)
+                        case 1
+                            elfield2(newEx, newEy, filteredDesign);
+                        case 2
+                            patchPlot = elfield2(newEx, newEy, filteredDesign(2, :));
+                            patchPlot.FaceAlpha = "flat";
+                            patchPlot.FaceVertexAlphaData = filteredDesign(1, :)';
+                        otherwise
+                            warning("The number of materials can not properly be displayed");
+                    end
                     axis equal
-                else
-                    warning("The result from the FEM model is not registrered as displayable");
-                end
-                if isa(obj.problem.fem, "OptThermoMechStructured")
-                    title("Deformed geometry (" + timeStep + ")")
-                    ed = obj.problem.fem.mechFEM.getElemDisp(obj.problem.fem.timeSteps-1);
-                    eldisplace2(Ex, Ey, ed, 1);
-                    axis equal
+                    colorbar
+                    caxis([0, 1]);
                 end
                 drawnow
             end

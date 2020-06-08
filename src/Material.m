@@ -9,7 +9,8 @@ classdef Material
         youngsModulus % Young's modulus
         poissonsRatio % Poisson's ratio
         stiffness % material stiffness matrix
-        thermalExp % Thermal expansion vector
+        thermalExp % Thermal expansion coefficient
+        thermalExpVector % Thermal expansion vector
     end
     
     methods
@@ -17,7 +18,7 @@ classdef Material
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin < 6
-                thermalExp = ones(3, 1);
+                thermalExp = 1;
             end
             if nargin < 5
                 E = 1;
@@ -35,7 +36,6 @@ classdef Material
                 density = 1;
             end
             assert(size(Kappa, 1) == 3 && size(Kappa, 2), "The thermal conductivity matrix must be a 3x3 matrix");
-            assert(size(thermalExp, 1) == 3 && size(thermalExp, 1), "The thermal expansion vector must be a 3x1 matrix");
 
             obj.density = density;
             obj.heatCapacity = heatCapacity;
@@ -44,6 +44,7 @@ classdef Material
             obj.poissonsRatio = nu;
             obj.stiffness = isotropic(E, nu);
             obj.thermalExp = thermalExp;
+            obj.thermalExpVector = thermalExp*ones(3, 1);
         end
     end
 end

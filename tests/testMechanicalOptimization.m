@@ -4,24 +4,26 @@ jobManager = JobManager();
 
 opt.maxtime = 5*60;
 opt.verbose = 1;
-opt.ftol_rel = 1e-8;
+opt.ftol_rel = 1e-6;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 
 timeSteps = 1;
-volumeFraction = 0.4;
+volumeFraction = 0.3;
 radius = 0.01;
-u_max = 5e-5;
+u_max = 5e-6;
 P = 1;
 k = 1e7;
 
-material_1 = Material(1, 1e6, 0.1*eye(3), 3e-2, 0.4);
-material_2 = Material(1, 1e6, 10*eye(3), 3e9*0.01, 0.4);
+void = Material(0, 1e6, 0.1*eye(3), 3e-2, 0.4);
+material_1 = Material(1.5e3, 1e3, 10*eye(3), 5e9, 0.4);
+material_2 = Material(1e3, 1e3, 10*eye(3), 3e9, 0.4);
+materials = [void, material_1, material_2];
 %% Structured mesh
 isnear = @(x, a) abs(x-a) < 1e-3;
 width = 0.3;
 height = 0.1;
-mesh = StructuredMesh([17, width], [9, height]);
+mesh = StructuredMesh([21, width], [11, height]);
 globalCoord = mesh.coordinates();
 
 topCornerNode = find(globalCoord(2, :) == height & globalCoord(1, :) == 0);
@@ -55,7 +57,7 @@ symmetry = struct(...
 pointLoad = struct(...
     'nodes', topCornerNode, ...
     'type', 'Neumann', ...
-    'value', -100, ...
+    'value', -10000, ...
     'components', [0, 1], ...
     'timeSteps', 1:timeSteps ...
 );
@@ -65,15 +67,15 @@ body = struct(...
     'type', 'main' ...
 );
 
-fem = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+fem = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 fem.addBoundaryCondition(fixed);
 fem.addBoundaryCondition(symmetry);
 fem.addBoundaryCondition(pointLoad);
 fem.addBodyCondition(body);
+fem.setMaterial(material_1);
 
-fem.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, 3, 3);
 fem.addInterpFuncs(E, EDer, alpha, alphaDer);
 
 
@@ -82,13 +84,14 @@ options = struct(...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
-
-initial = volumeFraction*ones(size(fem.designPar));
+massLimit = volumeFraction * sum(fem.volumes*material_1.density);
+initial = zeros(size(fem.designPar));
+initial(1, :) = volumeFraction;
 %%
-topOpt = MechComplianceProblem(fem, options, volumeFraction);
+topOpt = MechComplianceProblem(fem, options, massLimit);
 
 job = Job(topOpt, initial, opt);
 jobManager.add(job);
@@ -152,7 +155,7 @@ output = struct(...
     'timeSteps', 1:timeSteps ...
 );
 
-fem = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+fem = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 fem.addBoundaryCondition(fixed);
 fem.addBoundaryCondition(symmetry);
@@ -161,8 +164,8 @@ fem.addBoundaryCondition(spring);
 fem.addBoundaryCondition(output);
 fem.addBodyCondition(body);
 
-fem.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+fem.setMaterial(material_1);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, [4, 6], [3, 3]);
 fem.addInterpFuncs(E, EDer, alpha, alphaDer);
 
 
@@ -171,21 +174,25 @@ options = struct(...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
-initial = volumeFraction*ones(size(fem.designPar));
+massLimit = volumeFraction * sum(fem.volumes*material_1.density);
+initial = zeros(size(fem.designPar));
+initial(1, :) = volumeFraction;
 
-topOpt = FlexibilityProblem(fem, options, volumeFraction, u_max);
+topOpt = FlexibilityProblem(fem, options, massLimit, u_max);
 
 job = Job(topOpt, initial, opt);
 jobManager.add(job);
 %%
-topOpt = FlexibilityProblem2(fem, options, volumeFraction);
+topOpt = FlexibilityProblem2(copy(fem), options, volumeFraction);
 
 job = Job(topOpt, initial, opt);
-jobManager.add(job);
+% Comment out the non-constrained flexibility problem, as it is too
+% sensitive
+%jobManager.add(job);
 %%
 jobManager.runAll();
 %%

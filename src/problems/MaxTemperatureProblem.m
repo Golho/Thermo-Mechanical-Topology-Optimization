@@ -3,22 +3,23 @@ classdef MaxTemperatureProblem < TopOptProblem
     %   Detailed explanation goes here
 
     methods
-        function obj = MaxTemperatureProblem(femModel, options, volumeFraction, intermediateFunc)
+        function obj = MaxTemperatureProblem(femModel, options, massLimit, intermediateFunc)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
-            if nargin ~= 5
+            if nargin ~= 4
                 intermediateFunc = [];
             end
             obj = obj@TopOptProblem(femModel, options, intermediateFunc);
-            obj.options.volumeFraction = volumeFraction;
+            obj.options.massLimit = massLimit;
             obj.options.normFactor = 1;
             obj.options.maxSmoothingPar = 15;
+            [obj.options.densityFunc, obj.options.densityDerFunc] = ...
+                densitySIMP(obj.options.materials, ones(size(obj.fem.designPar, 1), 1));
         end
         
         function normalize(obj, designPar)
             % Find the maximum temperature for a certain point in design
             % space and use it as a normalization factor
-            designPar = reshape(designPar, [], 1);
             filteredPar = obj.filterParameters(designPar);
             
             obj.fem.reassemble(filteredPar);
@@ -29,13 +30,11 @@ classdef MaxTemperatureProblem < TopOptProblem
         end
         
         function g = objective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            filteredPar = obj.filterParameters(designPar);
             
             %kappa_2 = obj.options.material_2.kappa;
-            obj.fem.reassemble(filteredPar);
+            obj.fem.reassemble(designPar);
             obj.fem.solve();
             %g = 0;
             %deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
@@ -54,15 +53,7 @@ classdef MaxTemperatureProblem < TopOptProblem
             end
         end
         
-        function g = constraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            filteredPar = obj.filterParameters(designPar);
-
-            g = filteredPar'*obj.fem.volumes / (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
-        end
-        
         function dgdphi = gradObjective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %filteredPar = obj.filterParameters(designPar);
 
             a = obj.options.maxSmoothingPar;
@@ -77,15 +68,15 @@ classdef MaxTemperatureProblem < TopOptProblem
             end
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads);
-            dgdphi(:) = obj.filterGradient(dgdphi, designPar);
         end
         
-        function dgdphi = gradConstraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            %filteredPar = obj.filterParameters(designPar);
-            
-            dgdphi = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
-            dgdphi(:, 1) = obj.filterGradient(dgdphi, designPar);
+        function gs = constraint1(obj, designPar)
+            densities = obj.options.densityFunc(designPar);
+            gs = dot(densities, obj.fem.volumes) / obj.options.massLimit - 1;
+        end
+        
+        function dgsdphi = gradConstraint1(obj, designPar)
+            dgsdphi = obj.options.densityDerFunc(designPar) .* obj.fem.volumes' / obj.options.massLimit;
         end
     end
     

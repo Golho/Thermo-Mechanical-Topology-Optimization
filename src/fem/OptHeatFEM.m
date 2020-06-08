@@ -7,11 +7,11 @@ classdef OptHeatFEM < HeatFEM & OptHeatFEMBase
     end
     
     methods
-        function obj = OptHeatFEM(varargin)
+        function obj = OptHeatFEM(nbrMaterials, varargin)
             %HEATFEM Construct an instance of this class
             %   Detailed explanation goes here
             obj = obj@HeatFEM(varargin{:});
-            obj.designPar = ones(size(obj.Enod, 2), 1);
+            obj.designPar = ones(nbrMaterials-1, size(obj.Enod, 2));
         end
         
         function volumes = get.volumes(obj)
@@ -83,7 +83,7 @@ classdef OptHeatFEM < HeatFEM & OptHeatFEMBase
             startTime = tic;
             if nargin < 3
                 dT0dx = sparse(size(obj.temperatures, 1), ...
-                    length(obj.designPar));
+                    numel(obj.designPar));
             end
             
             deltaT = obj.tFinal / (obj.timeSteps - 1);
@@ -91,28 +91,30 @@ classdef OptHeatFEM < HeatFEM & OptHeatFEMBase
             adjoints = obj.solveAdjoint(adjointLoads);
             
             chainGrad = (-adjoints(:, 1)' * obj.B * dT0dx)';
+            chainGrad = reshape(chainGrad, size(obj.designPar));
             
             enod = obj.Enod(:, 1);
             T_e = obj.temperatures(enod, :);
             adjoint_e = adjoints(enod, :);
-            dRdx = zeros(size(adjoint_e));
+            adjoint_dRdx = zeros(size(obj.designPar, 1), 1);
             
-            for e = 1:length(chainGrad)
+            for e = 1:length(chainGrad)                
                 enod(:) = obj.Enod(:, e);
                 T_e(:) = obj.temperatures(enod, :);
                 adjoint_e(:) = adjoints(enod, :);
             
-                dkappadphi = obj.conductivityDer(obj.designPar(e));
-                dcpdphi = obj.heatCapacityDer(obj.designPar(e));
+                d = obj.designPar(:, e);
+                dkappadphi = obj.conductivityDer(d);
+                dcpdphi = obj.heatCapacityDer(d);
                 
                 k0 = obj.getElementBaseMatrix(1, 'D');
                 c0 = obj.getElementBaseMatrix(1, 'cp');
-
-                dRdx(:) = (deltaT*obj.theta*dkappadphi*k0 + dcpdphi*c0) * ...
-                    T_e(:, 2:end) - ...
-                    (deltaT*(obj.theta-1)*dkappadphi*k0 + dcpdphi*c0) * ...
-                    T_e(:, 1:end-1);
-                chainGrad(e) = chainGrad(e) - sum(dot(adjoint_e, dRdx));
+                
+                adjoint_dRdx(:) = dkappadphi * sum(dot(adjoint_e, ...
+                        deltaT*obj.theta*k0*T_e(:, 2:end) - deltaT*(obj.theta-1)*k0*T_e(:, 1:end-1)...
+                    )) + ...
+                    dcpdphi * sum(dot(adjoint_e, c0 * (T_e(:, 2:end) - T_e(:, 1:end-1))));
+                chainGrad(:, e) = chainGrad(:, e) - adjoint_dRdx;
             end
             fprintf("Computed gradient term:\t\t%f secs\n", toc(startTime));
         end
@@ -129,7 +131,7 @@ classdef OptHeatFEM < HeatFEM & OptHeatFEMBase
             V = zeros(size(I));
             c = 0; % offset
             for e = 1:nbrElements
-                d = obj.designPar(e);
+                d = obj.designPar(:, e);
                 edof = obj.Enod(:, e);
                 elementCoord = obj.nodeCoordinates(:, edof)';
                 elementMatrix = func(elementCoord);

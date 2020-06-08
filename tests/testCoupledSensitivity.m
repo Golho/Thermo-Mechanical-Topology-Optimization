@@ -8,8 +8,9 @@ k = 250;
 tFinal = 600;
 u_max = 5e-5;
 
-material_1 = Material(1, 1e6, 0.1*eye(3), 3e1, 0.31, 0*ones(3, 1));
-material_2 = Material(1, 1e6, 84*eye(3), 200e9, 0.31, 1.5e-5*ones(3, 1));
+material_1 = Material(1, 1e6, 1e-3*eye(3),  1e3, 0.31, 0);
+material_2 = Material(2, 2e6, 10*eye(3),    1e9, 0.31, 1.5e-5);
+materials = [material_1, material_2];
 
 %%
 width = 5e-4;
@@ -69,7 +70,7 @@ body = struct(...
     'type', 'main' ...
 );
 
-mechFEM = OptMechFEMStructured(mesh, timeSteps, "plane stress");
+mechFEM = OptMechFEMStructured(numel(materials), mesh, timeSteps, "plane stress");
 
 mechFEM.addBoundaryCondition(fixed);
 mechFEM.addBoundaryCondition(symmetry);
@@ -77,10 +78,10 @@ mechFEM.addBoundaryCondition(output);
 mechFEM.addBodyCondition(body);
 
 mechFEM.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, 3, 3);
 mechFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-heatFEM = OptThermoMechStructured(mechFEM, mesh, tFinal, timeSteps, 1);
+heatFEM = OptThermoMechStructured(mechFEM, numel(materials), mesh, tFinal, timeSteps, 1);
 
 heatFEM.addBoundaryCondition(tempPrescribed);
 heatFEM.addBoundaryCondition(heatInput);
@@ -88,7 +89,7 @@ heatFEM.addBodyCondition(body);
 
 heatFEM.setMaterial(material_2);
 
-[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(material_1, material_2, 3, 3);
+[kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, 3, 3);
 heatFEM.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 options = struct(...
@@ -96,21 +97,22 @@ options = struct(...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'material_1', material_1, ...
-    'material_2', material_2 ...
+    'materials', materials, ...
+    'plot', false ...
 );
 
 coupledFEM = heatFEM;
 
 %%
-topOpt = ThermallyActuatedProblem(coupledFEM, options, volumeFraction);
+massLimit = volumeFraction * sum(heatFEM.volumes*material_2.density);
+topOpt = ThermallyActuatedProblem(coupledFEM, options, massLimit);
 initial = rand(size(coupledFEM.designPar));
 g(1) = topOpt.objective(initial)
 
 errors = topOpt.testGradients(initial, 1e-6)
 assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
-topOpt = ThermallyActuatedProblem2(coupledFEM, options, volumeFraction);
+topOpt = ThermallyActuatedProblem2(coupledFEM, options);
 initial = rand(size(coupledFEM.designPar));
 g(1) = topOpt.objective(initial)
 
@@ -118,7 +120,7 @@ errors = topOpt.testGradients(initial, 1e-6)
 assert(all(errors < 1e-5), "Sensitivities does not match");
 %%
 
-stiffFEM = OptMechFEMStructured(mesh, 1, "plane stress");
+stiffFEM = OptMechFEMStructured(numel(materials), mesh, 1, "plane stress");
 
 % Create boundary conditions
 fixed = struct(...
@@ -151,10 +153,10 @@ stiffFEM.addBoundaryCondition(output);
 stiffFEM.addBodyCondition(body);
 
 stiffFEM.setMaterial(material_2);
-[E, EDer, alpha, alphaDer] = MechSIMP(material_1, material_2, 3, 3);
+[E, EDer, alpha, alphaDer] = MechSIMP(materials, 3, 3);
 stiffFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, volumeFraction, u_max);
+topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, massLimit, u_max);
 initial = rand(size(coupledFEM.designPar));
 g(1) = topOpt.objective(initial)
 

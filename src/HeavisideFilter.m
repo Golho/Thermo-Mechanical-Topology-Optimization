@@ -20,9 +20,11 @@ classdef HeavisideFilter < handle
         end
         
         function update(obj, rho)
-            if obj.counter > 10 && mod(obj.counter, 5) == 0
+            if obj.counter > 10 && mod(obj.counter, 1) == 0
                 if obj.beta < 1
-                    obj.beta = obj.beta * 2;
+                    obj.beta = obj.beta * 1.5;
+                elseif obj.beta > 2
+                    %obj.beta = obj.beta + 0.1;
                 else
                     obj.beta = obj.beta * 1.05;
                 end

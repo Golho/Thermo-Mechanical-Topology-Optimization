@@ -7,12 +7,12 @@ classdef OptMechFEMStructured < MechFEMStructured & OptMechFEMBase
     end
     
     methods
-        function obj = OptMechFEMStructured(varargin)
+        function obj = OptMechFEMStructured(nbrMaterials, varargin)
             %OPTMECHFEMSTRUCTURED Construct an instance of this class
             %   Detailed explanation goes here
 
             obj = obj@MechFEMStructured(varargin{:});
-            obj.designPar = ones(obj.mesh.NumElements, 1);
+            obj.designPar = ones(nbrMaterials-1, obj.mesh.NumElements, 1);
         end
         
         function volumes = get.volumes(obj)
@@ -64,20 +64,21 @@ classdef OptMechFEMStructured < MechFEMStructured & OptMechFEMBase
             u_e = obj.displacements(edof, :);
             T_e = obj.temperatureChanges(enod, :);
             adjoint_e = adjoints(edof, :);
-            dRdx = zeros(size(adjoint_e));
             
-            for e = 1:length(chainGrad)
+            for e = 1:size(chainGrad, 2)
                 edof(:) = obj.Edof(:, e);
                 enod(:) = obj.Enod(:, e);
                 u_e(:) = obj.displacements(edof, :);
                 T_e(:) = obj.temperatureChanges(enod, :);
                 adjoint_e(:) = adjoints(edof, :);
             
-                dEdphi = obj.stiffnessDer(obj.designPar(e));
-                dalphadphi = obj.thermalExpDer(obj.designPar(e));
+                dEdphi = obj.stiffnessDer(obj.designPar(:, e));
+                dalphadphi = obj.thermalExpDer(obj.designPar(:, e));
 
-                dRdx(:) = dEdphi * k0_uu * u_e - dalphadphi * k0_uT * T_e;
-                chainGrad(e) = -sum(dot(adjoint_e, dRdx));
+                chainGrad(:, e) = -(...
+                    dEdphi * sum(dot(adjoint_e, k0_uu * u_e)) - ...
+                    dalphadphi * sum(dot(adjoint_e, k0_uT * T_e)) ...
+                );
             end
             fprintf("Computed gradient term:\t\t%f secs\n", toc(startTime));
         end
@@ -110,7 +111,7 @@ classdef OptMechFEMStructured < MechFEMStructured & OptMechFEMBase
             V = zeros(size(I));
             c = 0; % offset
             for e = 1:nbrElements
-                d = obj.designPar(e);
+                d = obj.designPar(:, e);
                 factor = obj.elementProp(property, d);
                 V(c+(1:numel(elementMatrix))) = factor * ...
                     elementMatrix(:);

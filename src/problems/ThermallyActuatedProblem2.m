@@ -13,10 +13,8 @@ classdef ThermallyActuatedProblem2 < TopOptProblem
         end
         
         function g = objective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            designPar = obj.filterParameters(designPar);
             
             I = obj.fem.mechFEM.getDummy("josse");
             
@@ -27,7 +25,6 @@ classdef ThermallyActuatedProblem2 < TopOptProblem
         end
         
         function dgdphi = gradObjective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %filteredPar = obj.filterParameters(designPar);
 
             I = obj.fem.mechFEM.getDummy("josse");
@@ -36,8 +33,6 @@ classdef ThermallyActuatedProblem2 < TopOptProblem
             adjointLoads_mech = -I;
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech);
-            
-            dgdphi(:) = obj.filterGradient(dgdphi, designPar);
         end
     end
 end

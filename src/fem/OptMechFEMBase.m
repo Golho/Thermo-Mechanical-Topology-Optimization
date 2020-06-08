@@ -81,13 +81,13 @@ classdef (Abstract) OptMechFEMBase < MechFEMBase
                     if ~isempty(obj.thermalExp)
                         prop = obj.thermalExp(designPar);
                     else
-                        prop = obj.material.thermalExp(1);
+                        prop = obj.material.thermalExp;
                     end
                 case 'alphavector'
                     if ~isempty(obj.thermalExp)
                         prop = obj.thermalExp(designPar)*ones(3, 1);
                     else
-                        prop = obj.material.thermalExp;
+                        prop = obj.material.thermalExpVector;
                     end
             end
         end

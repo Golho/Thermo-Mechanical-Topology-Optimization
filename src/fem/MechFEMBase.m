@@ -129,7 +129,7 @@ classdef (Abstract) MechFEMBase < FEMBase
                     end
                     if exist('elementTemp', 'var')
                         es = smQUA_4stress(obj.Ex, obj.Ey, elementDisp, D, ...
-                            1, elementTemp, obj.material.thermalExp(1:2));
+                            1, elementTemp, obj.material.thermalExpVector(1:2));
                     else
                         es = smQUA_4stress(obj.Ex, obj.Ey, elementDisp, D, 1);
                     end
@@ -163,7 +163,7 @@ classdef (Abstract) MechFEMBase < FEMBase
             end
         end
         
-        function [Ke] = elementTempStiffness(coord, elementType, stiffness, thermalExp, planarType)
+        function [Ke] = elementTempStiffness(coord, elementType, stiffness, thermalExpVector, planarType)
             if nargin < 5
                 planarType = "plane strain";
             end
@@ -178,7 +178,7 @@ classdef (Abstract) MechFEMBase < FEMBase
                         otherwise
                             error("Planar type must be given for planar elements")
                     end
-                    Ke = smQUA_4therm(coord(:, 1), coord(:, 2), D, thermalExp(1:2), 1);
+                    Ke = smQUA_4therm(coord(:, 1), coord(:, 2), D, thermalExpVector(1:2), 1);
                     %Ke = hQUA_4K(ex, ey, obj.D, obj.thickness);
                 otherwise
                     error("The element stiffness matrix is not yet implemented for the current element type");

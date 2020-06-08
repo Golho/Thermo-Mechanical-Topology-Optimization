@@ -3,22 +3,21 @@ classdef ThermallyActuatedProblem < TopOptProblem
     %   Detailed explanation goes here
     
     methods
-        function obj = ThermallyActuatedProblem(femModel, options, volumeFraction, intermediateFunc)
+        function obj = ThermallyActuatedProblem(femModel, options, massLimit, intermediateFunc)
             %THERMALLYACTUATEDPROBLEM Construct an instance of this class
             %   Detailed explanation goes here
             if nargin < 4
                 intermediateFunc = [];
             end
             obj = obj@TopOptProblem(femModel, options, intermediateFunc);
-            obj.options.volumeFraction = volumeFraction;
+            obj.options.massLimit = massLimit;
+            [obj.options.densityFunc, obj.options.densityDerFunc] = ...
+                densitySIMP(obj.options.materials, 1);
         end
         
         function g = objective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            designPar = obj.filterParameters(designPar);
-            
             I = obj.fem.mechFEM.getDummy("josse");
             
             obj.fem.reassemble(designPar);
@@ -28,7 +27,6 @@ classdef ThermallyActuatedProblem < TopOptProblem
         end
         
         function dgdphi = gradObjective(obj, designPar)
-            designPar = reshape(designPar, [], 1);
             %filteredPar = obj.filterParameters(designPar);
 
             I = obj.fem.mechFEM.getDummy("josse");
@@ -37,23 +35,15 @@ classdef ThermallyActuatedProblem < TopOptProblem
             adjointLoads_mech = -I;
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech);
-            
-            dgdphi(:) = obj.filterGradient(dgdphi, designPar);
         end
         
         function gs = constraint1(obj, designPar)
-            %designPar = reshape(designPar, [], 1);
-            %designPar(:) = obj.filterParameters(designPar);
-            gs = dot(designPar, obj.fem.volumes) / ...
-                (obj.options.volumeFraction*sum(obj.fem.volumes)) - 1;
+            densities = obj.options.densityFunc(designPar);
+            gs = dot(densities, obj.fem.volumes) / obj.options.massLimit - 1;
         end
         
         function dgsdphi = gradConstraint1(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-            %filteredPar = obj.filterParameters(designPar);
-            dgsdphi = obj.fem.volumes / (obj.options.volumeFraction * sum(obj.fem.volumes));
-
-            dgsdphi(:) = obj.filterGradient(dgsdphi, designPar);
+            dgsdphi = obj.options.densityDerFunc(designPar) .* obj.fem.volumes' / obj.options.massLimit;
         end
     end
 end
