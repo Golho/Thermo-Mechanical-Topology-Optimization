@@ -4,10 +4,10 @@ classdef HeatFEM < HeatFEMBase
     
     properties
         spatialDimensions
+        mesh % Gsmh object
     end
     
     properties(Access = protected)
-        mesh % Gsmh object
         EnodElements % Mapping from Enod numbering to Gmsh numbering
     end
     

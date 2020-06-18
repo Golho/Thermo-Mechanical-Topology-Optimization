@@ -6,7 +6,7 @@ classdef JobManager < handle
         jobCounter = 1;
         jobs = Job.empty;
         logger;
-        savePath = 'results/';
+        savePath = "results/";
     end
     
     methods
@@ -91,9 +91,9 @@ classdef JobManager < handle
         end
         
         function folderPath = getFolderPath(obj)
-            subFolderName = ['jobs', datestr(now,'yyyy-mm-dd HH_MM_SS-FFF'), '/'];
+            subFolderName = "jobs" + datestr(now,'yyyy-mm-dd HH_MM_SS-FFF') + "/";
             mkdir(obj.savePath, subFolderName);
-            folderPath = [obj.savePath, subFolderName];
+            folderPath = obj.savePath + subFolderName;
         end
     end
 end

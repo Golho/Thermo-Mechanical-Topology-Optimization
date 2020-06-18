@@ -22,13 +22,17 @@ classdef (Abstract) TopOptProblem < handle
         intermediateFunc
         heaviside
         iteration = 0;
+        figures % access through getter
     end
     
     properties(Access = protected)
         designFig
         curveFig
+        heavisideFig
+        
         designPlot
         curvePlots
+        heavisidePlot
         
         nbrConstraints
     end
@@ -55,19 +59,15 @@ classdef (Abstract) TopOptProblem < handle
             % Use indexing of obj.options to force similar structures
             obj.options(1) = options;
             obj.fem.assemble();
-            
+        end
+        
+        function figures = get.figures(obj)
+            figures = [];
             if obj.options.plot
-                obj.designFig = figure;
-                if femModel.spatialDimensions == 2
-                    title("Design at iteration 0");
-                    obj.designPlot = plotDesign(femModel.Ex, femModel.Ey, femModel.designPar);
-                end
-                obj.curveFig = figure;
-                obj.curvePlots = cell(1, 1 + obj.nbrConstraints);
-                for i = 1:(1+obj.nbrConstraints)
-                    subplot(1 + obj.nbrConstraints, 1, i);
-                    obj.curvePlots{i} = plot(0, 0);
-                    title("g_" + (i-1));
+                figures(end + 1) = obj.designFig;
+                figures(end + 1) = obj.curveFig;
+                if obj.options.heavisideFilter
+                    figures(end + 1) = obj.heavisideFig;
                 end
             end
         end
@@ -82,6 +82,10 @@ classdef (Abstract) TopOptProblem < handle
             val = obj.objective(filteredPar);
             
             if obj.options.plot
+                if obj.iteration == 1
+                    obj.initPlotting();
+                end
+                
                 figure(obj.curveFig);
                 subplot(1 + numel(obj.nlopt_constraints), 1, 1)
                 obj.curvePlots{1}.XData(end+1) = obj.iteration;
@@ -91,6 +95,12 @@ classdef (Abstract) TopOptProblem < handle
                     figure(obj.designFig);
                     title("Design at iteration " + obj.iteration);
                     plotDesign(obj.fem.Ex, obj.fem.Ey, filteredPar, obj.designPlot);
+                end
+                
+                if obj.options.heavisideFilter
+                    figure(obj.heavisideFig);
+                    obj.heavisidePlot.YData = obj.heaviside.filter(0:0.01:1);
+                    title("Heaviside projection (beta = " + obj.heaviside.beta);
                 end
             end
             
@@ -201,6 +211,29 @@ classdef (Abstract) TopOptProblem < handle
                 c = c + 1;
             end
             relErrors = [objError, constraintErrors];
+        end
+    end
+    
+    methods(Access = protected)
+        function initPlotting(obj)
+            obj.designFig = figure;
+            if obj.fem.spatialDimensions == 2
+                title("Design at iteration 0");
+                obj.designPlot = plotDesign(obj.fem.Ex, obj.fem.Ey, obj.fem.designPar);
+            end
+            obj.curveFig = figure;
+            obj.curvePlots = cell(1, 1 + obj.nbrConstraints);
+            for i = 1:(1+obj.nbrConstraints)
+                subplot(1 + obj.nbrConstraints, 1, i);
+                obj.curvePlots{i} = plot(0, 0);
+                title("g_" + (i-1));
+            end
+            
+            if obj.options.heavisideFilter
+                obj.heavisideFig = figure;
+                obj.heavisidePlot = plot(0:0.01:1, obj.heaviside.filter(0:0.01:1));
+                title("Heaviside projection (beta = " + obj.heaviside.beta);
+            end
         end
     end
 end

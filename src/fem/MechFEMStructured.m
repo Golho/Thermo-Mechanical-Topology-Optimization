@@ -4,9 +4,6 @@ classdef MechFEMStructured < MechFEMBase
     
     properties
         spatialDimensions
-    end
-    
-    properties(Access = protected)
         mesh
     end
     

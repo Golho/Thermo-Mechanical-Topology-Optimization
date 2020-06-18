@@ -23,7 +23,7 @@ materials = [void, material_1, material_2];
 isnear = @(x, a) abs(x-a) < 1e-3;
 width = 0.3;
 height = 0.1;
-mesh = StructuredMesh([21, width], [11, height]);
+mesh = StructuredMesh([41, width], [21, height]);
 globalCoord = mesh.coordinates();
 
 topCornerNode = find(globalCoord(2, :) == height & globalCoord(1, :) == 0);

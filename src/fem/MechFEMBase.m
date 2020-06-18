@@ -2,7 +2,7 @@ classdef (Abstract) MechFEMBase < FEMBase
     %UNTITLED2 Summary of this class goes here
     %   Detailed explanation goes here
     
-    properties(Abstract, Access = protected)
+    properties(Abstract)
         mesh
     end
     

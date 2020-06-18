@@ -4,9 +4,6 @@ classdef HeatFEMStructured < HeatFEMBase
     
     properties
         spatialDimensions
-    end
-    
-    properties(Access = protected)
         mesh
     end
     
