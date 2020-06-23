@@ -15,9 +15,9 @@ radius = 10e-6;
 k = 65/10e-6;
 volumeFraction = 0.25;
 
-void = Material(1, 1e6, 0.01*eye(3), 100e3, 0.3, 0);
-material_1 = Material(2000, 1e3, 10*eye(3), 100e9, 0.3, 4e-5);
-material_2 = Material(1000, 1e3, 10*eye(3), 100e9, 0.3, 2e-5);
+void = Material(1, 1e6, 0.01, 100e3, 0.3, 0);
+material_1 = Material(2000, 1e3, 10, 100e9, 0.3, 4e-5);
+material_2 = Material(1000, 1e3, 10, 100e9, 0.3, 2e-5);
 
 materials = [void, material_1, material_2];
 
@@ -103,9 +103,7 @@ p_kappa = 3;
 p_cp = 1;
 for p_E = [3]
     for p_alpha = [3]
-        mechFEM_i = copy(mechFEM);
-
-        heatFEM_i = OptThermoMechStructured(mechFEM_i, numel(materials), mesh, tFinal, timeSteps, 1);
+        heatFEM_i = OptThermoMechStructured(mechFEM, numel(materials), mesh, tFinal, timeSteps, 1);
 
         heatFEM_i.addBoundaryCondition(flux);
         heatFEM_i.addBodyCondition(body);
@@ -113,7 +111,7 @@ for p_E = [3]
         heatFEM_i.setMaterial(material_2);
 
         [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
-        mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
+        heatFEM_i.mechFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
 
         [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
         heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);

@@ -15,15 +15,15 @@ u_max = 5e-6;
 P = 1;
 k = 1e7;
 
-void = Material(0, 1e6, 0.1*eye(3), 3e-2, 0.4);
-material_1 = Material(1.5e3, 1e3, 10*eye(3), 5e9, 0.4);
-material_2 = Material(1e3, 1e3, 10*eye(3), 3e9, 0.4);
+void = Material(0, 1e6, 0.1, 3e-2, 0.4);
+material_1 = Material(1.5e3, 1e3, 10, 5e9, 0.4);
+material_2 = Material(1e3, 1e3, 10, 3e9, 0.4);
 materials = [void, material_1, material_2];
 %% Structured mesh
 isnear = @(x, a) abs(x-a) < 1e-3;
 width = 0.3;
 height = 0.1;
-mesh = StructuredMesh([41, width], [21, height]);
+mesh = StructuredMesh([21, width], [11, height]);
 globalCoord = mesh.coordinates();
 
 topCornerNode = find(globalCoord(2, :) == height & globalCoord(1, :) == 0);
@@ -187,7 +187,7 @@ topOpt = FlexibilityProblem(fem, options, massLimit, u_max);
 job = Job(topOpt, initial, opt);
 jobManager.add(job);
 %%
-topOpt = FlexibilityProblem2(copy(fem), options, volumeFraction);
+topOpt = FlexibilityProblem2(fem, options, volumeFraction);
 
 job = Job(topOpt, initial, opt);
 % Comment out the non-constrained flexibility problem, as it is too

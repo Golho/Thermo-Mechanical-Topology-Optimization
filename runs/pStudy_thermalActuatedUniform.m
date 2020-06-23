@@ -14,8 +14,8 @@ radius = 10e-6;
 k = 65/10e-6;
 volumeFraction = 0.25;
 
-void = Material(0, 1, 1*eye(3), 100e3, 0.3, 0);
-material_2 = Material(1, 1, 1*eye(3), 100e9, 0.3, 2e-5);
+void = Material(0, 1, 1, 100e3, 0.3, 0);
+material_2 = Material(1, 1, 1, 100e9, 0.3, 2e-5);
 materials = [void, material_2];
 %%
 width = 400e-6;
@@ -107,14 +107,12 @@ for p_E = [3]
                     'timeSteps', 1:timeSteps ...
                 );
 
-                mechFEM_i = copy(mechFEM);
-
                 mechFEM_i.addBoundaryCondition(spring);
 
                 [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
                 mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
 
-                topOpt = ThermallyActuatedProblemUniform(mechFEM_i, options, massLimit, penalty);
+                topOpt = ThermallyActuatedProblemUniform(mechFEM, options, massLimit, penalty);
                 initial = volumeFraction*ones(size(mechFEM.designPar));
 
                 job = Job(topOpt, initial, opt);

@@ -12,7 +12,7 @@ classdef OptThermoMechStructured < OptHeatFEMStructured
             %OPTTHERMOMECHSTRUCTURED Construct an instance of this class
             %   Detailed explanation goes here
             obj = obj@OptHeatFEMStructured(varargin{:});
-            obj.mechFEM = optMechFEM;
+            obj.mechFEM = copy(optMechFEM);
         end
         
         function assemble(obj)

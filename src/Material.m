@@ -5,7 +5,8 @@ classdef Material
     properties
         density
         heatCapacity
-        Kappa % thermal conductivity matrix
+        conductivity % thermal conductivity coefficient
+        conductivityMatrix % thermal conductivity matrix
         youngsModulus % Young's modulus
         poissonsRatio % Poisson's ratio
         stiffness % material stiffness matrix
@@ -14,7 +15,7 @@ classdef Material
     end
     
     methods
-        function obj = Material(density, heatCapacity, Kappa, E, nu, thermalExp)
+        function obj = Material(density, heatCapacity, conductivity, E, nu, thermalExp)
             %UNTITLED2 Construct an instance of this class
             %   Detailed explanation goes here
             if nargin < 6
@@ -27,7 +28,7 @@ classdef Material
                 nu = 0.25;
             end
             if nargin < 3
-                Kappa = eye(3);
+                conductivity = 1;
             end
             if nargin < 2
                 heatCapacity = 1;
@@ -35,11 +36,11 @@ classdef Material
             if nargin < 1
                 density = 1;
             end
-            assert(size(Kappa, 1) == 3 && size(Kappa, 2), "The thermal conductivity matrix must be a 3x3 matrix");
 
             obj.density = density;
             obj.heatCapacity = heatCapacity;
-            obj.Kappa = Kappa;
+            obj.conductivity = conductivity;
+            obj.conductivityMatrix = conductivity*eye(3);
             obj.youngsModulus = E;
             obj.poissonsRatio = nu;
             obj.stiffness = isotropic(E, nu);

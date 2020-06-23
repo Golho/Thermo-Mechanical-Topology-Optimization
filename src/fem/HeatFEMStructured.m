@@ -123,7 +123,7 @@ classdef HeatFEMStructured < HeatFEMBase
         function [K, M] = applyMain(obj, elementCoord)
             startTime = tic;
             stiffMatrix = obj.elementStiffness(elementCoord, ...
-                obj.mesh.ElementType, obj.material.Kappa);
+                obj.mesh.ElementType, obj.material.conductivityMatrix);
             K = obj.integrate(stiffMatrix, 2);
             
             magnitude = obj.material.density * obj.material.heatCapacity;

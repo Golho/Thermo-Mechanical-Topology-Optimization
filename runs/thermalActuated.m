@@ -15,8 +15,8 @@ P = 1;
 k = 5e5;
 tFinal = 600;
 
-material_1 = Material(1, 1.767e6, 1e-3*eye(3), 3e2, 0.45, 0);
-material_2 = Material(1e3, 1.767e3, 0.22*eye(3), 1.1e9, 0.45, 8e-5);
+material_1 = Material(1, 1.767e6, 1e-3, 3e2, 0.45, 0);
+material_2 = Material(1e3, 1.767e3, 0.22, 1.1e9, 0.45, 8e-5);
 materials = [material_1, material_2];
 %%
 width = 0.1;

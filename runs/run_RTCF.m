@@ -36,8 +36,8 @@ body = struct(...
     'type', 'main' ...
 );
 
-material_1 = Material(1, 5e5, 0.1*eye(3));
-material_2 = Material(1e3, 1e3, 10*eye(3));
+material_1 = Material(1, 5e5, 0.1);
+material_2 = Material(1e3, 1e3, 10);
 
 materials = [material_1, material_2];
 

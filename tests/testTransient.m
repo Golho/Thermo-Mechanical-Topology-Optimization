@@ -8,7 +8,7 @@ k = 1;
 cp = 1;
 rho = 1;
 q_0 = 1;
-m = Material(rho, cp, k*eye(3));
+m = Material(rho, cp, k);
 
 % Create boundary conditions
 prescribed = struct(...
@@ -175,7 +175,7 @@ fem = HeatFEMStructured(mesh, tFinal, timeSteps);
 fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(fluxCorner);
 fem.addBodyCondition(body);
-m = Material(rho, cp, k*eye(3));
+m = Material(rho, cp, k);
 fem.setMaterial(m);
 
 fem.assemble()
@@ -259,7 +259,7 @@ fem.addBoundaryCondition(prescribed);
 fem.addBoundaryCondition(fluxCorner);
 fem.addBodyCondition(body);
 
-m = Material(rho, cp, k*eye(3));
+m = Material(rho, cp, k);
 fem.setMaterial(m);
 
 fem.assemble()

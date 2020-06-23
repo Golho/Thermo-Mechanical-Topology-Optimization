@@ -89,13 +89,13 @@ classdef OptHeatFEMBase < HeatFEMBase
                     if ~isempty(obj.conductivity)
                         prop = obj.conductivity(designPar);
                     else
-                        prop = obj.material.Kappa(1, 1);
+                        prop = obj.material.conductivity;
                     end
                 case 'D'
                     if ~isempty(obj.conductivity)
                         prop = obj.conductivity(designPar)*eye(3);
                     else
-                        prop = obj.material.Kappa;
+                        prop = obj.material.conductivityMatrix;
                     end
                 case 'cp'
                     if ~isempty(obj.heatCapacity)

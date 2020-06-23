@@ -15,9 +15,9 @@ P = 1;
 k = 500e7;
 tFinal = 0.2;
 
-void = Material(1, 1e7, 0.01*eye(3), 1e3, 0.4, 0);
-copper = Material(8900, 390, 402*eye(3), 130e9, 0.355, 23e-5);
-aluminium = Material(2700, 240, 88*eye(3), 70e9, 0.335, 16e-5);
+void = Material(1, 1e7, 0.01, 1e3, 0.4, 0);
+copper = Material(8900, 390, 402, 130e9, 0.355, 23e-5);
+aluminium = Material(2700, 240, 88, 70e9, 0.335, 16e-5);
 materials = [void, aluminium, copper];
 
 %%
@@ -111,9 +111,7 @@ p_E = 1;
 p_kappa = 1;
 p_cp = 1;
 for p_alpha = [1]
-    mechFEM_i = copy(mechFEM);
-    
-    heatFEM_i = OptThermoMechStructured(mechFEM_i, numel(materials), mesh, tFinal, timeSteps, 1);
+    heatFEM_i = OptThermoMechStructured(mechFEM, numel(materials), mesh, tFinal, timeSteps, 1);
 
     heatFEM_i.addBoundaryCondition(tempPrescribed);
     heatFEM_i.addBoundaryCondition(heatInput);
@@ -122,7 +120,7 @@ for p_alpha = [1]
     heatFEM_i.setMaterial(copper);
     
     [E, EDer, alpha, alphaDer] = MechSIMP(materials, p_E, p_alpha);
-    mechFEM_i.addInterpFuncs(E, EDer, alpha, alphaDer);
+    heatFEM_i.mechFEM.addInterpFuncs(E, EDer, alpha, alphaDer);
 
     [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
     heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);

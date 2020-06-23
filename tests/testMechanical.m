@@ -9,7 +9,7 @@ timeSteps = 1;
 k = 1;
 cp = 1;
 rho = 1;
-m = Material(rho, cp, k*eye(3), 5, 0.25);
+m = Material(rho, cp, k, 5, 0.25);
 
 % Create boundary conditions
 fixed = struct(...

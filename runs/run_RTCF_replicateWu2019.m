@@ -36,8 +36,8 @@ body = struct(...
     'type', 'main' ...
 );
 
-material_1 = Material(1, 5e5, 0.1*eye(3));
-material_2 = Material(1e3, 1e3, 10*eye(3));
+material_1 = Material(1, 5e5, 0.1);
+material_2 = Material(1e3, 1e3, 10);
 materials = [material_1, material_2];
 
 options = struct(...
@@ -77,7 +77,7 @@ for tFinal = [100, 200, 500, 2000, 6000, 10000]
             [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, p_kappa, p_cp);
             fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
-            topOpt_1 = MaxTemperatureProblem(copy(fem), options, massLimit);
+            topOpt_1 = MaxTemperatureProblem(fem, options, massLimit);
             initial = volumeFraction*ones(size(fem.designPar));
             topOpt_1.normalize(initial);
 

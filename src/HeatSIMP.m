@@ -5,10 +5,10 @@ phi_min = 1e-12;
 if numel(materials) < 2
     error("At least 2 materials must be specified");
 elseif numel(materials) == 2
-    conductivity = @(phi) materials(1).Kappa(1) + phi.^p_kappa * (materials(2).Kappa(1) - materials(1).Kappa(1));
+    conductivity = @(phi) materials(1).conductivity + phi.^p_kappa * (materials(2).conductivity - materials(1).conductivity);
     % Do not allow phi to be 0 when calculating the derivative
     % This to avoid Inf-values when p < 1
-    conductivityDer = @(phi) p_kappa * max(1e-12, phi).^(p_kappa-1) * (materials(2).Kappa(1) - materials(1).Kappa(1));
+    conductivityDer = @(phi) p_kappa * max(1e-12, phi).^(p_kappa-1) * (materials(2).conductivity - materials(1).conductivity);
 
     volumetricHeat = [materials.density] .* [materials.heatCapacity];
 
@@ -25,16 +25,16 @@ elseif numel(materials) == 3
     assert(numel(p_kappa) == 2 && numel(p_cp) == 2, ...
         "The SIMP exponents must have the same dimensions as the desired design parameters");
     
-    conductivity = @(phi) materials(1).Kappa(1) + phi(1, :).^p_kappa(1).* ...
-        (materials(2).Kappa(1) + phi(2, :).^p_kappa(2)*(materials(3).Kappa(1) - materials(2).Kappa(1)) - ...
-        materials(1).Kappa(1));
+    conductivity = @(phi) materials(1).conductivity + phi(1, :).^p_kappa(1).* ...
+        (materials(2).conductivity + phi(2, :).^p_kappa(2)*(materials(3).conductivity - materials(2).conductivity) - ...
+        materials(1).conductivity);
     % Do not allow phi to be 0 when calculating the derivative
     % This to avoid Inf-values when p < 1
     conductivityDer = @(phi) [p_kappa(1)*max(phi_min, phi(1, :)).^(p_kappa(1)-1); 0] * ...
-        (materials(2).Kappa(1) - materials(1).Kappa(1)) + ...
+        (materials(2).conductivity - materials(1).conductivity) + ...
         [p_kappa(1)*max(phi_min, phi(1, :)).^(p_kappa(1)-1).*phi(2, :).^p_kappa(2); 
         phi(1, :).^p_kappa(2)*p_kappa(2).*max(phi_min, phi(2, :)).^(p_kappa(2)-1)] * ...
-        (materials(3).Kappa(1) - materials(2).Kappa(1));
+        (materials(3).conductivity - materials(2).conductivity);
 
     volumetricHeat = [materials.density] .* [materials.heatCapacity];
 

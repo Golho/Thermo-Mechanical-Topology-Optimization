@@ -4,8 +4,8 @@ tFinal = 1000;
 volumeFraction = 0.4;
 radius = 0.025;
 
-material_1 = Material(1, 1e6, 0.1*eye(3));
-material_2 = Material(2, 2e6, 10*eye(3));
+material_1 = Material(1, 1e6, 0.1);
+material_2 = Material(2, 2e6, 10);
 materials = [material_1, material_2];
 %% Structured mesh
 isnear = @(x, a) abs(x-a) < 1e-3;

@@ -8,8 +8,8 @@ k = 250;
 tFinal = 600;
 u_max = 5e-5;
 
-material_1 = Material(1, 1e6, 1e-3*eye(3),  1e3, 0.31, 0);
-material_2 = Material(2, 2e6, 10*eye(3),    1e9, 0.31, 1.5e-5);
+material_1 = Material(1, 1e6, 1e-3,  1e3, 0.31, 0);
+material_2 = Material(2, 2e6, 10,    1e9, 0.31, 1.5e-5);
 materials = [material_1, material_2];
 
 %%

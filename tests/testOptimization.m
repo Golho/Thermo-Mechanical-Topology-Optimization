@@ -13,9 +13,9 @@ tFinal = 100;
 volumeFraction = 0.4;
 radius = 0.005;
 
-void = Material(1, 1e7, 0.01*eye(3));
-copper = Material(8900, 390, 402*eye(3));
-aluminium = Material(2700, 240, 88*eye(3));
+void = Material(1, 1e7, 0.01);
+copper = Material(8900, 390, 402);
+aluminium = Material(2700, 240, 88);
 materials = [void, aluminium, copper];
 
 options = struct(...
@@ -136,7 +136,7 @@ initial = zeros(size(fem.designPar));
 initial(1, :) = 0.1;
 initial(2, :) = 0.5;
 
-topOpt_2 = MaxTemperatureProblem(copy(fem), options, massLimit);
+topOpt_2 = MaxTemperatureProblem(fem, options, massLimit);
 
 topOpt_2.normalize(initial);
 job = Job(topOpt_2, initial, opt);
@@ -183,13 +183,13 @@ jobManager.add(job);
 % [kappaF, kappaFDer, cp, cpDer] = HeatSIMP(materials, [3, 3], [3, 3]);
 % fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 % 
-% topOpt_2 = MaxTemperatureProblem(copy(fem), options, volumeFraction);
+% topOpt_2 = MaxTemperatureProblem(fem, options, volumeFraction);
 % initial = volumeFraction*ones(size(fem.designPar));
 % topOpt_2.normalize(initial);
 % job = Job(topOpt_2, initial, opt);
 % jobManager.add(job);
 % %%
-% topOpt_2 = MaxTemperatureProblem(copy(fem), options, volumeFraction);
+% topOpt_2 = MaxTemperatureProblem(fem, options, volumeFraction);
 % topOpt_2.normalize(initial);
 % job = Job(topOpt_2, initial, opt);
 % jobManager.add(job);

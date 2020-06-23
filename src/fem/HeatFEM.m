@@ -119,7 +119,7 @@ classdef HeatFEM < HeatFEMBase
                     case 'main'
                         startTime = tic;
                         func = @(coords, elementType, tag) obj.elementStiffness(...
-                            coords, elementType, obj.material.Kappa);
+                            coords, elementType, obj.material.conductivityMatrix);
                         obj.K = obj.K + obj.integrate(elementBlocks, func, 2);
                         
                         magnitude = obj.material.density * obj.material.heatCapacity;

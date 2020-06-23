@@ -23,7 +23,7 @@ classdef HeatComplianceProblem < TopOptProblem
             obj.fem.reassemble(designPar);
             obj.fem.solve();
             
-            kappa_2 = obj.options.materials(2).Kappa(1);
+            kappa_2 = obj.options.materials(2).conductivity;
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
 
             KT = deltaT / (obj.fem.tFinal * kappa_2) * ...
@@ -33,7 +33,7 @@ classdef HeatComplianceProblem < TopOptProblem
         
         function dgdphi = gradObjective(obj, designPar)
             
-            kappa_2 = obj.options.materials(2).Kappa(1);
+            kappa_2 = obj.options.materials(2).conductivity;
             deltaT = obj.fem.tFinal / (obj.fem.timeSteps-1);
 
             adjointLoads = 2*deltaT / (obj.fem.tFinal * kappa_2) * ...

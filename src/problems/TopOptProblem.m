@@ -45,7 +45,7 @@ classdef (Abstract) TopOptProblem < handle
     
     methods
         function obj = TopOptProblem(femModel, options, intermediateFunc)
-            obj.fem = femModel;
+            obj.fem = copy(femModel);
             obj.nbrConstraints = numel(obj.nlopt_constraints);
 
             if nargin == 3

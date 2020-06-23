@@ -3,8 +3,8 @@ timeSteps = 1;
 volumeFraction = 0.4;
 radius = 0.025;
 
-material_1 = Material(1, 1e6, 0.1*eye(3), 1e1, 0.25, 0);
-material_2 = Material(2, 1e6, 10*eye(3), 1e9, 0.25, 5e-5);
+material_1 = Material(1, 1e6, 0.1, 1e1, 0.25, 0);
+material_2 = Material(2, 1e6, 10, 1e9, 0.25, 5e-5);
 
 materials = [material_1, material_2];
 %% Structured mesh

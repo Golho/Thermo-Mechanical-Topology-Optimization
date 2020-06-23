@@ -14,9 +14,9 @@ radius = 0.01;
 k = 65e6;
 volumeFraction = 0.25;
 
-void = Material(1, 1e7, 0.01*eye(3), 1e3, 0.4, 0);
-copper = Material(8900, 390, 402*eye(3), 130e9, 0.355, 23e-5);
-aluminium = Material(2700, 240, 88*eye(3), 70e9, 0.335, 16e-5);
+void = Material(1, 1e7, 0.01, 1e3, 0.4, 0);
+copper = Material(8900, 390, 402, 130e9, 0.355, 23e-5);
+aluminium = Material(2700, 240, 88, 70e9, 0.335, 16e-5);
 materials = [void, aluminium, copper];
 %%
 width = 0.4;
