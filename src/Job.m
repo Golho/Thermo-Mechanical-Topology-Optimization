@@ -1,7 +1,7 @@
 classdef Job < handle
     properties
         name
-        initialSolution
+        initialDesign
         problemConfiguration
         femConfiguration
         optFemConf
@@ -9,6 +9,9 @@ classdef Job < handle
         result
 
         problem
+        
+        linkedJob % Link the output of one job to be the initial solution 
+        % of this job
     end
     
     methods
@@ -17,7 +20,7 @@ classdef Job < handle
                 obj.name = name;
             end
             obj.problem = problem;
-            obj.initialSolution = initial;
+            obj.initialDesign = initial;
             obj.problemConfiguration = problem.getConfiguration();
             obj.femConfiguration = problem.fem.configuration;
             obj.optFemConf = problem.fem.optConfiguration;
@@ -26,14 +29,24 @@ classdef Job < handle
             obj.optConf.algorithm = solverOptions.algorithm;
         end
         
+        function linkJob(obj, parentJob)
+            obj.linkedJob = parentJob;
+        end
+        
         function run(obj)
             obj.optConf.solverOptions.min_objective = @(varargin) obj.problem.nlopt_objective(varargin{:});
             obj.optConf.solverOptions.lower_bounds = zeros(size(obj.problem.fem.designPar));
             obj.optConf.solverOptions.upper_bounds = ones(size(obj.problem.fem.designPar));
             obj.optConf.solverOptions.fc = obj.problem.nlopt_constraints();
             
+            if ~isempty(obj.linkedJob)
+                % Take the output design of the linked job and use as
+                % the initial design
+                obj.initialDesign = obj.linkedJob.result.finalSolution;
+            end
+
             tic;
-            [optDesign, fmin, returnCode] = nlopt_optimize(obj.optConf.solverOptions, reshape(obj.initialSolution, 1, []));
+            [optDesign, fmin, returnCode] = nlopt_optimize(obj.optConf.solverOptions, reshape(obj.initialDesign, 1, []));
             duration = toc;
 
             obj.result.finalSolution = reshape(optDesign, size(obj.problem.fem.designPar));
@@ -153,7 +166,7 @@ classdef Job < handle
             save(jobNameTxt, 'saveMatrix', '-ascii','-double');
             saveObj = struct(...
                 "name", obj.name, ...
-                "initialDesign", obj.initialSolution, ...
+                "initialDesign", obj.initialDesign, ...
                 "problemConfiguration", obj.problemConfiguration, ...
                 "femConfiguration", obj.femConfiguration, ...
                 "optFemConfiguration", obj.optFemConf, ...

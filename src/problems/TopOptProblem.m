@@ -52,8 +52,8 @@ classdef (Abstract) TopOptProblem < handle
                 obj.intermediateFunc = intermediateFunc;
             end
             
-            if options.heavisideFilter
-                obj.heaviside = HeavisideFilter(0.01, 0.5);
+            if isa(options.heavisideFilter, "HeavisideFilter")
+                obj.heaviside = options.heavisideFilter;
             end
             
             % Use indexing of obj.options to force similar structures
@@ -66,7 +66,7 @@ classdef (Abstract) TopOptProblem < handle
             if obj.options.plot
                 figures(end + 1) = obj.designFig;
                 figures(end + 1) = obj.curveFig;
-                if obj.options.heavisideFilter
+                if ~isempty(obj.heaviside)
                     figures(end + 1) = obj.heavisideFig;
                 end
             end
@@ -97,15 +97,15 @@ classdef (Abstract) TopOptProblem < handle
                     plotDesign(obj.fem.Ex, obj.fem.Ey, filteredPar, obj.designPlot);
                 end
                 
-                if obj.options.heavisideFilter
+                if ~isempty(obj.heaviside)
                     figure(obj.heavisideFig);
                     obj.heavisidePlot.YData = obj.heaviside.filter(0:0.01:1);
                     title("Heaviside projection (beta = " + obj.heaviside.beta);
                 end
             end
             
-            if obj.options.heavisideFilter
-                obj.heaviside.update(filteredPar);
+            if ~isempty(obj.heaviside)
+                obj.heaviside.runUpdate(filteredPar);
             end
             
             if ~isempty(obj.intermediateFunc)
@@ -165,7 +165,7 @@ classdef (Abstract) TopOptProblem < handle
                 filteredPar = designPar * obj.weights;
             end
             
-            if obj.options.heavisideFilter
+            if ~isempty(obj.heaviside)
                 filteredPar = obj.heaviside.filter(filteredPar);
             end
         end
@@ -185,7 +185,7 @@ classdef (Abstract) TopOptProblem < handle
                 filteredPar = filteredPar * obj.weights;
             end
             
-            if obj.options.heavisideFilter
+            if ~isempty(obj.heaviside)
                 filteredGrad = obj.heaviside.gradFilter(filteredPar).*filteredGrad;
                 %filteredPar = obj.heaviside.filter(filteredPar);
             end
@@ -229,7 +229,7 @@ classdef (Abstract) TopOptProblem < handle
                 title("g_" + (i-1));
             end
             
-            if obj.options.heavisideFilter
+            if ~isempty(obj.heaviside)
                 obj.heavisideFig = figure;
                 obj.heavisidePlot = plot(0:0.01:1, obj.heaviside.filter(0:0.01:1));
                 title("Heaviside projection (beta = " + obj.heaviside.beta);
