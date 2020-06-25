@@ -35,8 +35,6 @@ classdef FlexibilityProblem < TopOptProblem
             adjointLoads = -I / obj.options.u_max;
             
             dgdphi = obj.fem.gradChainTerm(adjointLoads);
-            
-            dgdphi(:) = obj.filterGradient(dgdphi, designPar);
         end        
         
         function gs = constraint1(obj, designPar)

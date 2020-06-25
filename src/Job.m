@@ -50,7 +50,7 @@ classdef Job < handle
             duration = toc;
 
             obj.result.finalSolution = reshape(optDesign, size(obj.problem.fem.designPar));
-            obj.result.finalSolutionFiltered = obj.problem.filterParameters(obj.result.finalSolution);
+            obj.result.finalSolutionFiltered = obj.problem.filterForOutput(obj.result.finalSolution);
             obj.result.fmin = fmin;
             obj.result.returnCode = returnCode;
             obj.result.solverTime = duration;
@@ -126,7 +126,7 @@ classdef Job < handle
             end
             
             unfilteredDesign = obj.result.finalSolution;
-            filteredDesign = obj.problem.filterParameters(unfilteredDesign);
+            filteredDesign = obj.result.finalSolutionFiltered;
             
             if size(obj.result.finalSolution, 1) == 2
                 % Switch the place of the first and the second design
@@ -178,7 +178,7 @@ classdef Job < handle
             
             % Save figures if any
             i = 1;
-            for fig = obj.problem.figures
+            for fig = obj.problem.getFigures()
                 savefig(fig, pathPrefix + "_fig" + i + ".fig");
                 i = i + 1;
             end
@@ -194,7 +194,7 @@ classdef Job < handle
             end
             Ex = obj.problem.fem.Ex;
             Ey = obj.problem.fem.Ey;
-            filteredDesign = obj.problem.filterParameters(obj.result.finalSolution);
+            filteredDesign = obj.result.finalSolutionFiltered;
                
             figure
             sgtitle(obj.name);

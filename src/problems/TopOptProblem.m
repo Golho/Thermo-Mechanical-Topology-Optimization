@@ -22,7 +22,6 @@ classdef (Abstract) TopOptProblem < handle
         intermediateFunc
         heaviside
         iteration = 0;
-        figures % access through getter
     end
     
     properties(Access = protected)
@@ -61,7 +60,7 @@ classdef (Abstract) TopOptProblem < handle
             obj.fem.assemble();
         end
         
-        function figures = get.figures(obj)
+        function figures = getFigures(obj)
             figures = [];
             if obj.options.plot
                 figures(end + 1) = obj.designFig;
@@ -86,22 +85,8 @@ classdef (Abstract) TopOptProblem < handle
                     obj.initPlotting();
                 end
                 
-                figure(obj.curveFig);
-                subplot(1 + numel(obj.nlopt_constraints), 1, 1)
-                obj.curvePlots{1}.XData(end+1) = obj.iteration;
-                obj.curvePlots{1}.YData(end+1) = val;
-
-                if obj.fem.spatialDimensions == 2
-                    figure(obj.designFig);
-                    title("Design at iteration " + obj.iteration);
-                    plotDesign(obj.fem.Ex, obj.fem.Ey, filteredPar, obj.designPlot);
-                end
-                
-                if ~isempty(obj.heaviside)
-                    figure(obj.heavisideFig);
-                    obj.heavisidePlot.YData = obj.heaviside.filter(0:0.01:1);
-                    title("Heaviside projection (beta = " + obj.heaviside.beta);
-                end
+                obj.plotDesign(obj.filterForOutput(designPar));
+                obj.plotG_i(0, val);
             end
             
             if ~isempty(obj.heaviside)
@@ -134,10 +119,7 @@ classdef (Abstract) TopOptProblem < handle
             val = obj.("constraint" + iConstraint)(filteredPar);
             
             if obj.options.plot
-                figure(obj.curveFig);
-                subplot(1 + numel(obj.nlopt_constraints), 1, iConstraint+1)
-                obj.curvePlots{iConstraint+1}.XData(end+1) = obj.iteration;
-                obj.curvePlots{iConstraint+1}.YData(end+1) = val;
+                obj.plotG_i(iConstraint, val);
             end
             
             fprintf("Calling constraint(%d): %f\n", iConstraint, val);
@@ -153,6 +135,34 @@ classdef (Abstract) TopOptProblem < handle
             conf.problemName = class(obj);
         end
         
+        function filteredPar = filterForOutput(obj, designPar)
+            % The filtering used before the design is considered finished
+            filteredPar = obj.filterParameters(designPar);
+        end
+        
+        function relErrors = testGradients(obj, designPar, h)
+            if nargin < 3
+                h = 1e-8;
+            end
+            dgdphi = numGrad(@obj.nlopt_objective, designPar, h);
+
+            % Analytical gradient
+            [~, der_g] = obj.nlopt_objective(designPar);
+            objError = norm(dgdphi - der_g) / norm(dgdphi);
+            c = 1;
+            constraintFuncs = obj.nlopt_constraints;
+            constraintErrors = zeros(size(constraintFuncs));
+            for constraintFunc = constraintFuncs
+                dgdphi = numGrad(constraintFunc{:}, designPar, h);
+                [~, der_g] = constraintFunc{:}(designPar);
+                constraintErrors(c) = norm(dgdphi - der_g) / norm(dgdphi);
+                c = c + 1;
+            end
+            relErrors = [objError, constraintErrors];
+        end
+    end
+    
+    methods(Access = protected)
         function filteredPar = filterParameters(obj, designPar)
             filteredPar = designPar;
             if obj.options.designFilter
@@ -192,29 +202,6 @@ classdef (Abstract) TopOptProblem < handle
             %filteredGrad = 1./max(designPar, 0.01) .* obj.weights * (designPar.*grad);
         end
         
-        function relErrors = testGradients(obj, designPar, h)
-            if nargin < 3
-                h = 1e-8;
-            end
-            dgdphi = numGrad(@obj.nlopt_objective, designPar, h);
-
-            % Analytical gradient
-            [~, der_g] = obj.nlopt_objective(designPar);
-            objError = norm(dgdphi - der_g) / norm(dgdphi);
-            c = 1;
-            constraintFuncs = obj.nlopt_constraints;
-            constraintErrors = zeros(size(constraintFuncs));
-            for constraintFunc = constraintFuncs
-                dgdphi = numGrad(constraintFunc{:}, designPar, h);
-                [~, der_g] = constraintFunc{:}(designPar);
-                constraintErrors(c) = norm(dgdphi - der_g) / norm(dgdphi);
-                c = c + 1;
-            end
-            relErrors = [objError, constraintErrors];
-        end
-    end
-    
-    methods(Access = protected)
         function initPlotting(obj)
             obj.designFig = figure;
             if obj.fem.spatialDimensions == 2
@@ -234,6 +221,27 @@ classdef (Abstract) TopOptProblem < handle
                 obj.heavisidePlot = plot(0:0.01:1, obj.heaviside.filter(0:0.01:1));
                 title("Heaviside projection (beta = " + obj.heaviside.beta);
             end
+        end
+        
+        function plotDesign(obj, filteredPar)
+            if obj.fem.spatialDimensions == 2
+                figure(obj.designFig);
+                title("Design at iteration " + obj.iteration);
+                plotDesign(obj.fem.Ex, obj.fem.Ey, filteredPar, obj.designPlot);
+            end
+            
+            if ~isempty(obj.heaviside)
+                figure(obj.heavisideFig);
+                obj.heavisidePlot.YData = obj.heaviside.filter(0:0.01:1);
+                title("Heaviside projection (beta = " + obj.heaviside.beta);
+            end
+        end
+        
+        function plotG_i(obj, iFunction, value)
+            figure(obj.curveFig);
+            subplot(1 + numel(obj.nlopt_constraints), 1, 1)
+            obj.curvePlots{iFunction + 1}.XData(end+1) = obj.iteration;
+            obj.curvePlots{iFunction + 1}.YData(end+1) = value;
         end
     end
 end

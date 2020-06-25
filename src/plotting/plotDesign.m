@@ -9,6 +9,8 @@ if nargin < 4
     elseif size(designPar, 1) == 1
         patchPlot = elfield2(Ex, Ey, designPar);
     end
+    colorbar;
+    caxis([0, 1]);
 else
     if size(designPar, 1) == 2
         patchPlot.CData = designPar(2, :);
@@ -17,8 +19,6 @@ else
         patchPlot.CData = designPar;
     end
 end
-colorbar;
-caxis([0, 1]);
 drawnow;
 end
 

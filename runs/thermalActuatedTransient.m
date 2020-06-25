@@ -4,25 +4,27 @@ jobManager = JobManager();
 
 opt.maxtime = 20*60;
 opt.verbose = 1;
-opt.ftol_rel = 1e-7;
+opt.ftol_rel = 1e-6;
+opt.maxeval = 100;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 
 tFinal = 0.2;
 timeSteps = 20;
 radius = 1e-5;
-k = 500e2;
+k = 500e3;
 volumeFraction = 0.2;
 
 void = Material(1, 1e6, 0.001, 100e3, 0.31, 0);
 material_1 = Material(1e3, 1e3, 10, 100e9, 0.3, 1.5e-5);
-material_2 = Material(2000, 0.5e3, 10, 100e9, 0.3, 2e-5);
+material_2 = Material(4000, 0.5e3, 10, 100e9, 0.3, 5e-5);
 materials = [void, material_1, material_2];
+jobs = Job.empty();
 
 %%
 width = 5e-4;
 height = 2.5e-4;
-mesh = StructuredMesh([121, width], [61, height]);
+mesh = StructuredMesh([201, width], [101, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -120,14 +122,41 @@ for p_E = [3]
         heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
         coupledFEM = heatFEM_i;
-        topOpt = ThermallyActuatedProblem(coupledFEM, options, massLimit);
+        filters(1) = HeavisideFilter(1, 0.3, heavisideUpdater(1, 1));
+        filters(2) = HeavisideFilter(1, 0.5, heavisideUpdater(1, 1));
+        filters(3) = HeavisideFilter(1, 0.7, heavisideUpdater(1, 1));
+        topOpt = ThermallyActuatedProblem_Robust(coupledFEM, options, massLimit, filters);
         initial = volumeFraction * ones(size(heatFEM_i.designPar));
         initial(1, :) = 0.1;
         initial(2, :) = 0.7;
+%         load("results/jobs2020-06-22 17_19_23-793/job1.mat");
+%         initial = saveObj(1).result.finalSolutionFiltered;
 
-        job = Job(topOpt, initial, opt);
-        jobManager.add(job);
+        jobs(1) = Job(topOpt, initial, opt);
+        jobManager.add(jobs(1));
     end
+end
+%%
+opt.maxeval = 50;
+i = 2;
+for beta = [2, 4, 8]
+    filters(1) = HeavisideFilter(beta, 0.3, heavisideUpdater(1, 1));
+    filters(2) = HeavisideFilter(beta, 0.5, heavisideUpdater(1, 1));
+    filters(3) = HeavisideFilter(beta, 0.7, heavisideUpdater(1, 1));
+    options = struct(...
+        'heavisideFilter', false, ...
+        'designFilter', true, ...
+        'filterRadius', radius, ...
+        'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
+        'materials', materials, ...
+        'plot', true ...
+    );
+    topOpt = ThermallyActuatedProblem_Robust(coupledFEM, options, massLimit, filters);
+
+    jobs(i) = Job(topOpt, initial, opt);
+    jobs(i).linkJob(jobs(i-1));
+    jobManager.add(jobs(i));
+    i = i + 1;
 end
 %%
 jobManager.runAll();
