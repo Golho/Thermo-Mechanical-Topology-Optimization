@@ -1,10 +1,13 @@
-classdef ThermallyActuatedProblem_Robust < TopOptProblem
-    %THERMALLYACTUATEDPROBLEM Summary of this class goes here
+classdef RobustProblem < TopOptProblem
+    %ROBUSTPROBLEM Summary of this class goes here
     %   Detailed explanation goes here
     
+    % For a subclass of RobustProblem, the first constraint must be a
+    % volume constraint
+    
     properties
-        maxIndex
         dilatedMassLimit
+        maxIndex
         
         thresholdFig
         thresholdPlots
@@ -16,27 +19,34 @@ classdef ThermallyActuatedProblem_Robust < TopOptProblem
         projectionsPlots
     end
     
-    methods
-        function obj = ThermallyActuatedProblem_Robust(femModel, options, massLimit, filters, intermediateFunc)
-            %THERMALLYACTUATEDPROBLEM Construct an instance of this class
-            %   Detailed explanation goes here
-            if nargin < 5
-                intermediateFunc = [];
-            end
-            obj = obj@TopOptProblem(femModel, options, intermediateFunc);
-            obj.options.massLimit = massLimit;
-            obj.dilatedMassLimit = massLimit;
-            obj.options.filters = filters;
-            [obj.options.densityFunc, obj.options.densityDerFunc] = ...
-                densitySIMP(obj.options.materials, 1);
-        end
+    methods(Abstract)
+        g = subObjective(obj, designPar)
+        dgdphi = subGradObjective(obj, designPar)
         
+        g_v = volumeConstraint(obj, designPar)
+        dg_vdphi = volumeGradConstraint(obj, designPar)
+    end
+    
+    methods
         function figures = getFigures(obj)
             figures = getFigures@TopOptProblem(obj);
-            figures(end + 1) = obj.thresholdFig;
-            figures(end + 1) = obj.objectiveFig;
-            figures(end + 1) = obj.projectionsFig;
+            if obj.options.plot
+                figures(end + 1) = obj.thresholdFig;
+                figures(end + 1) = obj.objectiveFig;
+                figures(end + 1) = obj.projectionsFig;
+            end
+        end
+        
+        function obj = RobustProblem(femModel, options, massLimit, filters, intermediateFunc)
+            %ROBUSTPROBLEM Construct an instance of this class
+            %   Detailed explanation goes here
+            obj = obj@TopOptProblem(femModel, options, intermediateFunc);
+            obj.options.massLimit = massLimit;
+            obj.options.filters = filters;
+            obj.dilatedMassLimit = massLimit;
             
+            assert(obj.options.heavisideFilter == false, ...
+                "The Heaviside option must be inactivated for a robust problem");
         end
         
         function g = objective(obj, designPar)
@@ -75,8 +85,10 @@ classdef ThermallyActuatedProblem_Robust < TopOptProblem
             if mod(obj.iteration - 1, 10) == 0
                 intermediateDensities = obj.options.densityFunc(thresholdDesigns{2});
                 intermediateMass = dot(intermediateDensities, obj.fem.volumes);
+                
                 dilatedDensities = obj.options.densityFunc(thresholdDesigns{1});
                 dilatedMass = dot(dilatedDensities, obj.fem.volumes);
+
                 obj.dilatedMassLimit = dilatedMass / ...
                     intermediateMass * obj.options.massLimit;
             end
@@ -85,43 +97,20 @@ classdef ThermallyActuatedProblem_Robust < TopOptProblem
             fprintf("Max index: %d\n", obj.maxIndex);
         end
         
-        function g = subObjective(obj, designPar)
-            I = obj.fem.mechFEM.getDummy("josse");
-            
-            obj.fem.reassemble(designPar);
-            obj.fem.solve();
-
-            g = -sum(dot(I, obj.fem.mechFEM.displacements));
-        end
-        
         function dgdphi = gradObjective(obj, designPar)
             filteredDesignPar = obj.options.filters(obj.maxIndex).filter(designPar);
             dgdphi = obj.subGradObjective(filteredDesignPar) .* ...
                 obj.options.filters(obj.maxIndex).gradFilter(designPar);
         end
         
-        function dgdphi = subGradObjective(obj, designPar)
-            I = obj.fem.mechFEM.getDummy("josse");
-            
-            adjointLoads_therm = zeros(size(obj.fem.temperatures));
-            adjointLoads_mech = -I;
-            
-            dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech);
-        end
-        
         function g = constraint1(obj, designPar)
             dilatedDesignPar = obj.options.filters(1).filter(designPar);
-            g = obj.subConstraint1(dilatedDesignPar);
-        end
-        
-        function g = subConstraint1(obj, designPar)
-            densities = obj.options.densityFunc(designPar);
-            g = dot(densities, obj.fem.volumes) / obj.dilatedMassLimit - 1;
+            g = obj.volumeConstraint(dilatedDesignPar);
         end
         
         function dgsdphi = gradConstraint1(obj, designPar)
             dilatedDesignPar = obj.options.filters(1).filter(designPar);
-            dgsdphi = obj.options.densityDerFunc(dilatedDesignPar) .* obj.fem.volumes' / obj.dilatedMassLimit;
+            dgsdphi = obj.volumeGradConstraint(dilatedDesignPar);
             dgsdphi(:) = dgsdphi .* obj.options.filters(1).gradFilter(designPar);
         end
         
