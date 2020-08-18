@@ -15,7 +15,7 @@ materials = [void, material_1, material_2];
 %%
 width = 400e-6;
 height = 200e-6;
-mesh = StructuredMesh([201, width], [101, height]);
+mesh = StructuredMesh([81, width], [41, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -79,7 +79,7 @@ options = struct(...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
     'materials', materials, ...
-    'plot', false ...
+    'plot', true ...
     );
 
 %%
@@ -93,8 +93,8 @@ opt.ftol_rel = 1e-8;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 
-for p_E = [2, 3, 4]
-    for p_alpha = [2, 3, 4]
+for p_E = [4]
+    for p_alpha = [2]
         for k = [1e7]
             i = 1;
             for beta = [1, 2, 4, 8]
@@ -141,6 +141,6 @@ for p_E = [2, 3, 4]
     end
 end
 %%
-jobManager.runAndSaveAll();
+jobManager.runAll();
 %%
 jobManager.plotAll();

@@ -3,21 +3,17 @@ classdef ThermallyActuatedProblem3 < TopOptProblem
     %   Detailed explanation goes here
     
     methods
-        function obj = ThermallyActuatedProblem3(flexFemModel, stiffFemModel, options, massLimit, u_max, weight, intermediateFunc)
+        function obj = ThermallyActuatedProblem3(flexFemModel, stiffFemModel, options, massLimit, u_max, intermediateFunc)
             %THERMALLYACTUATEDPROBLEM Construct an instance of this class
             %   Detailed explanation goes here
-            if nargin < 7
-                intermediateFunc = [];
-            end
             if nargin < 6
-                weight = 0;
+                intermediateFunc = [];
             end
             obj = obj@TopOptProblem(flexFemModel, options, intermediateFunc);
             stiffFemModel.assemble();
             obj.options.stiffFemModel = stiffFemModel;
             obj.options.u_max = u_max;
             obj.options.massLimit = massLimit;
-            obj.options.intermediateWeight = weight;
             [obj.options.densityFunc, obj.options.densityDerFunc] = ...
                 densitySIMP(obj.options.materials, ones(size(obj.fem.designPar, 1), 1));
         end
@@ -31,8 +27,7 @@ classdef ThermallyActuatedProblem3 < TopOptProblem
             obj.fem.reassemble(designPar);
             obj.fem.solve();
             
-            g = -sum(dot(I, obj.fem.mechFEM.displacements)) + ...
-                obj.options.intermediateWeight*sum(designPar.*(1-designPar)) / numel(designPar);
+            g = -sum(dot(I, obj.fem.mechFEM.displacements));
         end
         
         function dgdphi = gradObjective(obj, designPar)
@@ -42,8 +37,7 @@ classdef ThermallyActuatedProblem3 < TopOptProblem
             adjointLoads_therm = zeros(size(obj.fem.temperatures));
             adjointLoads_mech = -I;
             
-            dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech) + ...
-                obj.options.intermediateWeight*(1-2*designPar) / numel(designPar);
+            dgdphi = obj.fem.gradChainTerm(adjointLoads_therm, adjointLoads_mech);
         end
         
         function gs = constraint1(obj, designPar)
@@ -71,21 +65,19 @@ classdef ThermallyActuatedProblem3 < TopOptProblem
     
     methods(Access = protected)
         function dgdphi = gradCompliance(obj, designPar)
-            designPar = reshape(designPar, [], 1);
-
             st = obj.options.stiffFemModel;
             adjointLoads = 2 * st.K_tot * st.displacements;
             
             dgdphi = st.gradChainTerm(adjointLoads);
             
-            for e = 1:length(designPar)
-                d = designPar(e);
+            for e = 1:size(designPar, 2)
+                d = designPar(:, e);
                 dEdphi = st.stiffnessDer(d);
                 k0 = st.getElementBaseMatrix(e, 'D');
                 u_e = st.displacements(st.Edof(:, e), :);
-                kT = dEdphi * k0*u_e;
+                kT = k0*u_e;
                 
-                dgdphi(e) = dgdphi(e) + sum(dot(u_e, kT));
+                dgdphi(:, e) = dgdphi(:, e) + dEdphi * sum(dot(u_e, kT));
             end
         end
     end
