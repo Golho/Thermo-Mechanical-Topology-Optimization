@@ -17,7 +17,6 @@ opt.ftol_rel = 1e-6;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 opt.algorithm = NLOPT_LD_MMA;
 
-tFinal = 0.2;
 timeSteps = 50;
 radius = 10e-6;
 k = 1e7;
@@ -30,7 +29,7 @@ materials = [void, material_1, material_2];
 %% Define the geometry
 width = 400e-6;
 height = 200e-6;
-mesh = StructuredMesh([141, width], [71, height]);
+mesh = StructuredMesh([161, width], [81, height]);
 globalCoord = mesh.coordinates();
 
 % Define the node groups
@@ -101,17 +100,6 @@ mechFEM.addBoundaryCondition(output);
 mechFEM.addBoundaryCondition(spring);
 mechFEM.addBodyCondition(body);
 
-
-
-options = struct(...
-    'heavisideFilter', false, ...
-    'designFilter', true, ...
-    'filterRadius', radius, ...
-    'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
-    'materials', materials, ...
-    'plot', true ...
-    );
-
 %%
 opt.maxeval = 70;
 p_cp = 3;
@@ -119,7 +107,7 @@ p_kappa = 2;
 p_E = 3;
 p_alpha = 4;
 
-for tFinal = [1e-3, 1e-2, 1e-1]
+for tFinal = [1e-3, 1e-2, 1e-1, 1]
     addJob(tFinal, p_cp, p_kappa, p_E, p_alpha);
 end
 
@@ -130,12 +118,6 @@ p_E = 3;
 p_alpha = 3;
 
 addJob(tFinal, p_cp, p_kappa, p_E, p_alpha);
-
-for p_cp = [2, 4]
-    addJob(tFinal, p_cp, p_kappa, p_E, p_alpha);
-end
-
-p_cp = 3;
 
 for p_kappa = [2, 4]
     addJob(tFinal, p_cp, p_kappa, p_E, p_alpha);
@@ -180,7 +162,6 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
     global opt
     global jobManager
     
-    tFinal = 0.2;
     timeSteps = 50;
     radius = 10e-6;
     k = 1e7;
@@ -201,7 +182,7 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
 
     coupledFEM = heatFEM_i;
     i = 1;
-    for beta = [1, 2, 3, 4]
+    for beta = [1, 2, 4, 8]
         filters(1) = HeavisideFilter(beta, 0.3, heavisideUpdater(1, 1));
         filters(2) = HeavisideFilter(beta, 0.5, heavisideUpdater(1, 1));
         filters(3) = HeavisideFilter(beta, 0.7, heavisideUpdater(1, 1));
@@ -211,9 +192,9 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
             'filterRadius', radius, ...
             'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
             'materials', materials, ...
-            'plot', true ...
+            'plot', false ...
             );
-        topOpt = MaxDisplacementProblem_Coupled_Robust2(coupledFEM, options, massLimit, 0.5, filters);
+        topOpt = MaxDisplacementProblem_Coupled_Robust(coupledFEM, options, massLimit, filters);
 
         initial = volumeFraction * ones(size(heatFEM_i.designPar));
         %initial(1, :) = 0.1;
@@ -224,7 +205,7 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
             jobs(i) = Job(topOpt, initial, opt);
             jobs(i).linkJob(jobs(i-1));
         else
-            opt.maxeval = 60;
+            opt.maxeval = 100;
             jobs(i) = Job(topOpt, initial, opt);
         end
         jobManager.add(jobs(i));

@@ -117,6 +117,8 @@ classdef VTKDumper < handle
                         end
                     end
                 end
+                
+                fclose(fid);
             end
         end
     end
