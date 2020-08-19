@@ -30,7 +30,7 @@ materials = [void, material_1, material_2];
 %% Define the geometry
 width = 0.1;
 height = 0.1;
-mesh = StructuredMesh([61, width], [61, height]);
+mesh = StructuredMesh([161, width], [161, height]);
 globalCoord = mesh.coordinates();
 
 
@@ -197,7 +197,11 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
     heatFEM_i.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
     coupledFEM = heatFEM_i;
-    
+    i = 1;
+    for beta = [1, 2, 4, 8]
+        filters(1) = HeavisideFilter(beta, 0.3, heavisideUpdater(1, 1));
+        filters(2) = HeavisideFilter(beta, 0.5, heavisideUpdater(1, 1));
+        filters(3) = HeavisideFilter(beta, 0.7, heavisideUpdater(1, 1));
         options = struct(...
             'heavisideFilter', false, ...
             'designFilter', true, ...
@@ -206,12 +210,21 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
             'materials', materials, ...
             'plot', true ...
             );
-        topOpt = ThermallyActuatedProblem3(coupledFEM, stiffFEM, options, massLimit, u_max);
+        topOpt = ThermallyActuatedProblem3_Robust(coupledFEM, stiffFEM, options, massLimit, u_max, filters);
 
         initial = volumeFraction * ones(size(heatFEM_i.designPar));
         %initial(1, :) = 0.1;
         initial(2, :) = 0.5;
 
-        job = Job(topOpt, initial, opt);
-        jobManager.add(job);
+        if i > 1
+            opt.maxeval = 50;
+            jobs(i) = Job(topOpt, initial, opt);
+            jobs(i).linkJob(jobs(i-1));
+        else
+            opt.maxeval = 100;
+            jobs(i) = Job(topOpt, initial, opt);
+        end
+        jobManager.add(jobs(i));
+        i = i + 1;
+    end
 end
