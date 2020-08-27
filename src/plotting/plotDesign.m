@@ -1,6 +1,12 @@
 function [patchPlot] = plotDesign(Ex, Ey, designPar, patchPlot)
-%PLOTDESIGN Summary of this function goes here
-%   Detailed explanation goes here
+%PLOTDESIGN Plot a topology optimized design
+%   patchPlot = plotDesign(Ex, Ey, designPar) Plot the design
+%   parameters in elements defined by element coordinates Ex and Ey. The
+%   design is defined in designPar as floats between 0 and 1. The function
+%   accepts either 1 or 2 design parameters per element. 
+%   
+%   patchPlot = plotDesign(Ex, Ey, designPar, patchPlot) Update the
+%   patch plot patchPlot
 if nargin < 4
     if size(designPar, 1) == 2
         patchPlot = elfield2(Ex, Ey, designPar(2, :));

@@ -1,13 +1,18 @@
 classdef RobustProblem < TopOptProblem
-    %ROBUSTPROBLEM Summary of this class goes here
-    %   Detailed explanation goes here
+    %ROBUSTPROBLEM Base class for every robust topology optimization
+    %problem
+    %   This class creates an common overhead for all robust TO problems as
+    %   they are described in the paper by Want et. al (2010) 
+    %   DOI 10.1007/s00158-010-0602-y
+    %   ! For a subclass of RboustProblem, the "constraint1" function and
+    %   gradient is reserved to the volume constraint, i.e. do not name any
+    %   method "constraint1" in the subclass. The same goes with the
+    %   "objective" function.
     
-    % For a subclass of RobustProblem, the first constraint must be a
-    % volume constraint
-    
-    properties
+    properties(Access = protected)
         dilatedMassLimit
-        maxIndex
+        maxIndex            % The index of the projected design which 
+        % gives the highest value of the objective function
         
         thresholdFig
         thresholdPlots
@@ -38,10 +43,10 @@ classdef RobustProblem < TopOptProblem
         end
         
         function obj = RobustProblem(femModel, options, massLimit, filters, intermediateFunc)
-            %ROBUSTPROBLEM Construct an instance of this class
-            %   Detailed explanation goes here
             obj = obj@TopOptProblem(femModel, options, intermediateFunc);
             obj.options.massLimit = massLimit;
+            % The filters must be 3 Heaviside filter objects with different
+            % thresholds
             obj.options.filters = filters;
             obj.dilatedMassLimit = massLimit;
             
@@ -50,6 +55,10 @@ classdef RobustProblem < TopOptProblem
         end
         
         function g = objective(obj, designPar)
+            %OBJECTIVE Robust objective function taking the max of the
+            %objective function values of the different design, eroded,
+            %intermediate and dilated.
+            % THIS MUST NOT BE OVERWRITTEN
             thresholdDesigns = cell(1, 3);
             gs = zeros(3, 1);
             for i = 1:3
@@ -98,17 +107,22 @@ classdef RobustProblem < TopOptProblem
         end
         
         function dgdphi = gradObjective(obj, designPar)
+            % THIS MUST NOT BE OVERWRITTEN
             filteredDesignPar = obj.options.filters(obj.maxIndex).filter(designPar);
             dgdphi = obj.subGradObjective(filteredDesignPar) .* ...
                 obj.options.filters(obj.maxIndex).gradFilter(designPar);
         end
         
         function g = constraint1(obj, designPar)
+            %CONSTRAINT1 Overhead function calling the volume constraint
+            %with the dilated design as input6
+            % THIS MUST NOT BE OVERWRITTEN
             dilatedDesignPar = obj.options.filters(1).filter(designPar);
             g = obj.volumeConstraint(dilatedDesignPar);
         end
         
         function dgsdphi = gradConstraint1(obj, designPar)
+            % THIS MUST NOT BE OVERWRITTEN
             dilatedDesignPar = obj.options.filters(1).filter(designPar);
             dgsdphi = obj.volumeGradConstraint(dilatedDesignPar);
             dgsdphi(:) = dgsdphi .* obj.options.filters(1).gradFilter(designPar);

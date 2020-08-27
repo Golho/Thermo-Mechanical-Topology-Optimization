@@ -1,13 +1,15 @@
 classdef VTKDumper < handle
-    %UNTITLED Summary of this class goes here
-    %   Detailed explanation goes here
+    %VTKDumper Class to dump data to .vtk-files
+    %   This class allows for adding several data sets on a Gmsh-mesh or 
+    %   StructuredMesh and then dump everything into a set of .VTK-files 
+    %   (one for each time step)
     
     properties
-        headerName
-        meshData
-        structured
-        elementType
-        pointData = struct(...
+        headerName              % Name of the header in the .VTK
+        meshData                % Mesh (Gmsh or StructuredMesh)
+        structured              % Boolean if mesh is structured
+        elementType             % Element type (for unstructured meshes)
+        pointData = struct(...  % Array of point data on the mesh
             "name", [], ...
             "type", [], ...
             "data", [], ...
@@ -15,7 +17,7 @@ classdef VTKDumper < handle
             "timeSteps", [] ...
             );
         nbrPointData = 0;
-        cellData = struct(...
+        cellData = struct(...   % Array of cell data on the mesh
             "name", [], ...
             "type", [], ...
             "data", [], ...
@@ -23,9 +25,9 @@ classdef VTKDumper < handle
             "timeSteps", [] ...
             );
         nbrCellData = 0;
-        maxTimeStep = 1;
+        timeSteps = 1;          % Number of time steps
         
-        extrudeZ = false;
+        extrudeZ = false;       % Boolean for if a 2D mesh should be extruded into 3D
     end
     
     methods
@@ -35,7 +37,7 @@ classdef VTKDumper < handle
                 obj.structured = false;
                 obj.elementType = elementType;
             elseif isa(meshData, "StructuredMesh")
-                assert(nargin ~= 3, "The element type is supertfluous when mesh is structured");
+                assert(nargin ~= 3, "The element type is superfluous when mesh is structured");
                 obj.structured = true;
             else
                 error("The identified mesh type is not supported");
@@ -45,8 +47,12 @@ classdef VTKDumper < handle
         end
         
         function addData(obj, fieldData, dataType)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
+            %ADDDATA Add point or cell data on the mesh
+            %   addData(obj, fieldData, dataType) Add fieldData with
+            %   dataType ("point" or "cell") to dump later. The structure
+            %   of the fieldData can been in the properties of the
+            %   VTKDumper.
+            
             % The number of entries in fieldData.data must equal the number
             % of cell/points times the number of components
             if dataType == "cell"
@@ -71,11 +77,17 @@ classdef VTKDumper < handle
             if fieldData.type == "vectors"
                 assert(fieldData.nbrComponents == 3, "The vector field must have 3 components");
             end
-            obj.maxTimeStep = max(max(fieldData.timeSteps), obj.maxTimeStep);
+            % Update the number of time steps
+            obj.timeSteps = max(max(fieldData.timeSteps), obj.timeSteps);
         end
         
         function dump(obj, filePrefix)
-            for timeStep = 1:obj.maxTimeStep
+            %DUMP   Dump the data added to the VTKDumper into a set of
+            %.VTK-files
+            %   dump(obj, filePrefix) Dump the data to .VTK-files with the
+            %   prefix filePrefix and a suffix showing the time step. E.g.
+            %   "stress_4.vtk"
+            for timeStep = 1:obj.timeSteps
                 filename = filePrefix + "_" + timeStep + ".vtk";
                 % Open the file.
                 fid = fopen(filename, "w");
@@ -83,6 +95,7 @@ classdef VTKDumper < handle
                     error("Cannot open file for writing.");
                 end
                 
+                % Write the header
                 if obj.structured
                     if obj.meshData.Nz == 1
                         % Extend 2D geometries to be able to use volumes in
@@ -100,6 +113,7 @@ classdef VTKDumper < handle
                     obj.writeGmshHeader(fid);
                 end
                 
+                % Write all the cell data
                 if numel(obj.cellData) > 0
                     fprintf(fid, "CELL_DATA %d\n", obj.meshData.NumElements);
                     for fieldData = obj.cellData
@@ -109,6 +123,7 @@ classdef VTKDumper < handle
                     end
                 end
                 
+                % Write all the point data
                 if numel(obj.cellData) > 0
                     fprintf(fid, "POINT_DATA %d\n", obj.meshData.NumNodes);
                     for fieldData = obj.pointData
@@ -125,6 +140,7 @@ classdef VTKDumper < handle
     
     methods(Access = protected)
         function writeStructuredHeader(obj, fileId)
+            % Write the header for a .vtk for a structured mesh
             dx = obj.meshData.Lx / max(obj.meshData.Nx - 1, 1);
             dy = obj.meshData.Ly / max(obj.meshData.Ny - 1, 1);
             dz = obj.meshData.Lz / max(obj.meshData.Nz - 1, 1);
@@ -144,6 +160,7 @@ classdef VTKDumper < handle
         end
         
         function writeGmshHeader(obj, fileId)
+            % Write the header for a .vtk for a unstructured mesh
             globalCoordinates = getGlobalCoordinates(obj.meshData);
             connectivity = getElements(obj.meshData);
             % Subtract 1 from the connectivity as VTK index from 0
@@ -163,6 +180,7 @@ classdef VTKDumper < handle
         end
         
         function writeDataset(obj, fileId, fieldData)
+            % Write the data of fieldData into a .vtk-file
             switch(fieldData.type)
                 case "scalars"
                     fprintf(fileId, "SCALARS %s float %d\n", ...

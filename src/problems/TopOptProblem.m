@@ -1,16 +1,18 @@
 classdef (Abstract) TopOptProblem < handle
-    %UNTITLED Summary of this class goes here
-    %   Detailed explanation goes here
+    %TOPOPTPROBLEM Base class for all TO problems formulated
+    %   This abstract class creates an interface towards the nlopt
+    %   optimizer and handles filtering and plotting for all topology
+    %   optimization problems.
     
     properties
-        fem
-        weights
-        computedWeights = false;
+        fem                     % FEM Model instance
+        weights                 % Weighting matrix used for filtering
+        computedWeights = false;% Boolean for if the weights are computed
         
-        designMin = 0;
-        designMax = 1;
+        designMin = 0;          % Min value for the design parameters
+        designMax = 1;          % Max value for the design parameters
         
-        options = struct(...
+        options = struct(...    % Topology optimization options
             'heavisideFilter', [], ...
             'designFilter', [], ...
             'filterRadius', [], ...
@@ -19,9 +21,10 @@ classdef (Abstract) TopOptProblem < handle
             'plot', [] ...
         );
         
-        intermediateFunc
-        heaviside
-        iteration = 0;
+        intermediateFunc        % Function to be called inside objective function. 
+        % Takes a FEM model as first input and design parameters as second
+        heaviside               % Heaviside filtering object
+        iteration = 0;          % Counter of iterations
     end
     
     properties(Access = protected)
@@ -37,9 +40,8 @@ classdef (Abstract) TopOptProblem < handle
     end
     
     methods(Abstract)
-        g = objective(obj, designPar)
-        
-        dgdphi = gradObjective(obj, designPar)
+        g = objective(obj, designPar)           % Objective function
+        dgdphi = gradObjective(obj, designPar)  % Gradient of the objective function
     end
     
     methods
@@ -61,6 +63,7 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function figures = getFigures(obj)
+            %GETFIGURES Get all the figures used for plotting
             figures = [];
             if obj.options.plot
                 figures(end + 1) = obj.designFig;
@@ -72,8 +75,15 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function [val, gradient] = nlopt_objective(obj, designPar)
+            %NLOPT_OBJECTIVE Objective function called by the nlopt
+            %optimizer
+            %   The input from the nl_opt optimizer is a 1D vector with 
+            %   every design parameter. The output should be the objective
+            %   function value and gradient.
             obj.iteration = obj.iteration + 1;
             
+            % Reshape the design parameters to have as many columns as
+            % number of elements
             designPar = reshape(designPar, [], size(obj.fem.Enod, 2));
             filteredPar = obj.filterParameters(designPar);
 
@@ -100,11 +110,17 @@ classdef (Abstract) TopOptProblem < handle
             if nargout > 1
                 gradient = obj.gradObjective(filteredPar);    
                 gradient(:) = obj.filterGradient(gradient, designPar);
+                % Reshape the gradient to comply with the 1D vector the
+                % optimizer uses
                 gradient = reshape(gradient, 1, []);
             end
         end
         
         function [gs] = nlopt_constraints(obj)
+            %NLOPT_CONSTRAINTS Constraint functions called by the nlopt
+            %optimizer.
+            %   The output should be a cell array with every constraint
+            %   function
             c = 0;
             gs = {};
             while ismethod(obj, "constraint" + (c+1))
@@ -114,6 +130,11 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function [val, gradient] = nlopt_constraint_i(obj, iConstraint, designPar)
+            %NLOPT_CONSTRAINT_I Constraint function i called by the nlopt
+            %optimizer
+            
+            % Reshape the design parameters to have as many columns as
+            % number of elements
             designPar = reshape(designPar, [], size(obj.fem.Enod, 2));
             filteredPar = obj.filterParameters(designPar);
             val = obj.("constraint" + iConstraint)(filteredPar);
@@ -126,6 +147,8 @@ classdef (Abstract) TopOptProblem < handle
             if (nargout > 1)
                 gradient = obj.("gradConstraint" + iConstraint)(filteredPar);
                 gradient(:) = obj.filterGradient(gradient, designPar);
+                % Reshape the gradient to comply with the 1D vector the
+                % optimizer uses
                 gradient = reshape(gradient, 1, []);
             end
         end
@@ -141,19 +164,29 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function relErrors = testGradients(obj, designPar, h)
+            %TESTGRADIENTS Calculate the of the gradients
+            %   testGradients(obj, designPar, h) Calculate the analytical
+            %   and numerical gradients for the objective function and
+            %   constriants for designPar and compute the relative error.
+            %   The parameter h decides the step to use in the numerical
+            %   gradient.
             if nargin < 3
                 h = 1e-8;
             end
+            
+            % Numerical gradient of the objective function
             dgdphi = numGrad(@obj.nlopt_objective, designPar, h);
 
-            % Analytical gradient
+            % Analytical gradient of the objective function
             [~, der_g] = obj.nlopt_objective(designPar);
             objError = norm(dgdphi - der_g) / norm(dgdphi);
             c = 1;
             constraintFuncs = obj.nlopt_constraints;
             constraintErrors = zeros(size(constraintFuncs));
             for constraintFunc = constraintFuncs
+                % Numerical gradient of the constraint
                 dgdphi = numGrad(constraintFunc{:}, designPar, h);
+                % Analytical gradient of the constraint
                 [~, der_g] = constraintFunc{:}(designPar);
                 constraintErrors(c) = norm(dgdphi - der_g) / norm(dgdphi);
                 c = c + 1;
@@ -164,6 +197,8 @@ classdef (Abstract) TopOptProblem < handle
     
     methods(Access = protected)
         function filteredPar = filterParameters(obj, designPar)
+            % Filter the design with a density filter and Heaviside
+            % projection
             filteredPar = designPar;
             if obj.options.designFilter
                 if ~obj.computedWeights
@@ -181,6 +216,8 @@ classdef (Abstract) TopOptProblem < handle
         end
         
         function filteredGrad = filterGradient(obj, grad, designPar)
+            % Add the factor to the gradient caused by the density
+            % filtering and Heaviside projection
             filteredGrad = grad;
             filteredPar = designPar;
             if obj.options.designFilter
@@ -199,7 +236,6 @@ classdef (Abstract) TopOptProblem < handle
                 filteredGrad = obj.heaviside.gradFilter(filteredPar).*filteredGrad;
                 %filteredPar = obj.heaviside.filter(filteredPar);
             end
-            %filteredGrad = 1./max(designPar, 0.01) .* obj.weights * (designPar.*grad);
         end
         
         function initPlotting(obj)
