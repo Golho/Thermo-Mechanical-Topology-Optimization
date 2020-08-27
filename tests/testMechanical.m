@@ -1,3 +1,5 @@
+function testMechanical()
+
 %% Structured mesh
 mesh = StructuredMesh([51, 1], [51, 1]);
 globalCoord = mesh.coordinates;
@@ -104,3 +106,4 @@ colorbar
 axis equal
 ed = fem.getElemDisp(0);
 [sfac] = eldisplace2(fem.Ex, fem.Ey, ed, 1);
+end

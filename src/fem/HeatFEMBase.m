@@ -120,8 +120,7 @@ classdef (Abstract) HeatFEMBase < FEMBase
                 case Elements.TRI_3
                     Ke = hTRI_3K(coord(:, 1), coord(:, 2), D(1:2, 1:2), 1);
                 case Elements.QUA_4 % QUADS
-                    Ke = flw2i4e(coord(:, 1), coord(:, 2), [1 2], D(1:2, 1:2));
-                    %Ke = hQUA_4K(ex, ey, obj.D, obj.thickness);
+                    Ke = hQUA_4K(coord(:, 1), coord(:, 2), D(1:2, 1:2), 1);
                 case Elements.HEX_8
                     Ke = hHEX_8K(coord(:, 1), coord(:, 2), coord(:, 3), D, 2);
                 otherwise

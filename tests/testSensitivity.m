@@ -1,4 +1,4 @@
-clear; close all;
+function testSensitivity()
 timeSteps = 5;
 tFinal = 1000;
 volumeFraction = 0.4;
@@ -47,7 +47,7 @@ fem.addBodyCondition(body);
 fem.setMaterial(material_2);
 
 options = struct(...
-    'heavisideFilter', HeavisideFilter(6, 0.5, heavisideUpdater(1, 1)), ...
+    'heavisideFilter', false, ...HeavisideFilter(6, 0.5, heavisideUpdater(1, 1)), ...
     'designFilter', true, ...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
@@ -131,3 +131,4 @@ g(1) = topOpt.objective(initial)
 
 errors = topOpt.testGradients(initial, 1e-6)
 assert(all(errors < 1e-5), "Sensitivities does not match");
+end

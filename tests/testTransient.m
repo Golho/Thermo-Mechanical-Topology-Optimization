@@ -1,5 +1,5 @@
+function testTransient()
 %% GMSH meshes
-clear; close all;
 gmsh = gmshParser('meshes/long_quad.msh');
 timeSteps = 100;
 tFinal = 10;
@@ -275,4 +275,5 @@ for t = 1:(timeSteps-1)
     ed = fem.getElemTemp(t);
     geoPlot.CData = ed(1:4, :);
     drawnow
+end
 end

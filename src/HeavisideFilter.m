@@ -1,29 +1,30 @@
 classdef HeavisideFilter < handle
-    %HEAVISIDEFILTER Summary of this class goes here
-    %   Detailed explanation goes here
+    %HEAVISIDEFILTER Smooth approximation of a Heaviside projection
+    %   This class holds the function and derivative for a smooth
+    %   approximation of a Heaviside projection. It also allows gradually
+    %   updating the steepness of the approximation.
     
     properties
-        beta_0 % Original beta value (used when saving settings)
-        beta % non-linearity parameter (steepness)
-        omega % threshold value
-        updateFun % Function for updating beta
+        beta_0          % Original beta value (used when saving settings)
+        beta            % non-linearity parameter (steepness)
+        eta             % threshold value
+        updateFun       % Function for updating beta
         
-        counter = 0;
+        counter = 0;    % Internal counter for updating beta
     end
     
     methods
-        function obj = HeavisideFilter(beta_0, omega, updateFun)
-            %HEAVISIDEFILTER Construct an instance of this class
-            %   Detailed explanation goes here
+        function obj = HeavisideFilter(beta_0, eta, updateFun)
             obj.beta_0 = beta_0;
             obj.beta = beta_0;
-            obj.omega = omega;
+            obj.eta = eta;
             if nargin == 3
                 obj.updateFun = updateFun;
             end
         end
         
         function runUpdate(obj, rho)
+            %RUNUPDATE Update the steepness of the approximation
             if ~isempty(obj.updateFun)
                 obj.beta = obj.updateFun(rho, obj.beta, obj.counter);
             else
@@ -34,14 +35,16 @@ classdef HeavisideFilter < handle
        
         
         function filteredRho = filter(obj, rho)
-            filteredRho = (tanh(obj.beta*obj.omega) + ...
-                tanh(obj.beta*(rho - obj.omega))) ...
-            / (tanh(obj.beta*obj.omega) + tanh(obj.beta*(1 - obj.omega)));
+            %FILTER Use the projection to filter the input rho
+            filteredRho = (tanh(obj.beta*obj.eta) + ...
+                tanh(obj.beta*(rho - obj.eta))) ...
+            / (tanh(obj.beta*obj.eta) + tanh(obj.beta*(1 - obj.eta)));
         end
         
         function gradient = gradFilter(obj, rho)
-            gradient = obj.beta*(1 - tanh(obj.beta*(rho-obj.omega)).^2) / ...
-            (tanh(obj.beta*obj.omega) + tanh(obj.beta*(1 - obj.omega)));
+            %GRADFILTER Calculate the first order derivative of the filter
+            gradient = obj.beta*(1 - tanh(obj.beta*(rho-obj.eta)).^2) / ...
+            (tanh(obj.beta*obj.eta) + tanh(obj.beta*(1 - obj.eta)));
         end
     end
     

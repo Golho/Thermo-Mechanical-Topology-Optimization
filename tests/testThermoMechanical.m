@@ -1,5 +1,5 @@
+function testThermoMechanical()
 %% GMSH meshes
-clear; close all;
 mesh = StructuredMesh([31, 1], [31, 1]);
 globalCoord = mesh.coordinates();
 
@@ -116,4 +116,5 @@ for t = 1:timeSteps-1
     vmStress = vonMises(eStress);
     stressPlot.CData = vmStress;
     drawnow;
+end
 end

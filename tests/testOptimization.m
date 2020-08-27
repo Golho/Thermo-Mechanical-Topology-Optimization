@@ -1,5 +1,4 @@
-clear;
-close all;
+function testOptimization()
 jobManager = JobManager();
 
 opt.maxtime = 20*60;
@@ -197,3 +196,4 @@ jobManager.add(job);
 jobManager.runAll();
 %%
 jobManager.plotAll();
+end

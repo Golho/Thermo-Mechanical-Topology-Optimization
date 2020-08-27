@@ -4,7 +4,7 @@ jobManager = JobManager();
 %%
 isnear = @(x, a) abs(x-a) < 1e-3;
 mesh = StructuredMesh([41, 0.05], [41, 0.05], [41, 0.05]);
-tFinal = 800;
+tFinal = 500;
 timeSteps = 20;
 radius = 0.005;
 volumeFraction = 0.2;
@@ -50,7 +50,7 @@ options = struct(...
     'filterRadius', radius, ...
     'filterWeightFunction', @(dx, dy, dz) max(radius-sqrt(dx.^2+dy.^2+dz.^2), 0), ...
     'materials', materials, ...
-    'plot', true ...
+    'plot', false ...
 );
 
 % tempFig = figure(1);
@@ -61,9 +61,9 @@ options = struct(...
 %
 % intermediateFunc = @(femModel, designPar) plotIntermediate(femModel, designPar, tempFig, designFig, tempPlot, designPlot);
 
-opt.maxtime = 30*60;
 opt.verbose = 1;
 opt.ftol_rel = 1e-7;
+opt.maxeval = 15;
 %opt.xtol_abs = 1e-7*ones(size(fem.mainDensities));
 %%
 opt.algorithm = NLOPT_LD_MMA;
@@ -77,14 +77,26 @@ fem.setMaterial(material_2);
 fem.addInterpFuncs(kappaF, kappaFDer, cp, cpDer);
 
 massLimit = volumeFraction * sum(fem.volumes * material_2.density);
+% topOpt_1 = MaxTemperatureProblem(fem, options, massLimit);
+% initial = volumeFraction*ones(size(fem.designPar));
+% topOpt_1.normalize(initial);
+% 
+% job = Job(topOpt_1, initial, opt);
+%jobManager.add(job);
+%%
+%jobManager.runAll();
+%%
 topOpt_1 = MaxTemperatureProblem(fem, options, massLimit);
-initial = volumeFraction*ones(size(fem.designPar));
+load("results/jobs2020-08-24 14_09_46-606/job2.mat");
+initial = saveObj.result.finalSolution;%jobManager.jobs(1).result.finalSolution;
 topOpt_1.normalize(initial);
 
+opt.maxeval = 500;
+opt.maxtime = 2*60*60;
 job = Job(topOpt_1, initial, opt);
 jobManager.add(job);
 %%
-jobManager.runAll();
+job.run();
 %%
 jobManager.plotAll();
 %%

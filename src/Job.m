@@ -1,17 +1,23 @@
 classdef Job < handle
+    %JOB Topology optimization (TO) job 
+    %   The TO job handles the optimization of a TO problem and stores the
+    %   results. Together with a JobManager, severals Jobs can be run in
+    %   the same go, and optimal design from one job can be pipelined to be the
+    %   initial design of another job.
+    
     properties
-        name
-        initialDesign
-        problemConfiguration
-        femConfiguration
-        optFemConf
-        optConf
-        result
+        name                    % Name of the job
+        initialDesign           % Initial design for optimization of the TO problem
+        problemConfiguration    % Configuration of the TO problem
+        femConfiguration        % Configuration of the FEM model
+        optFemConf              % Configuration of the TO FEM model
+        optConf                 % Configuration of the optimizer
+        result                  % Struct holding results and auxiliary information
 
-        problem
+        problem                 % The TO Problem to optimize
         
-        linkedJob % Link the output of one job to be the initial solution 
-        % of this job
+        linkedJob               % Link the output of linkedJob to be the initial solution 
+                                % of this job
     end
     
     methods
@@ -30,10 +36,13 @@ classdef Job < handle
         end
         
         function linkJob(obj, parentJob)
+            %LINKJOB Link the output of a job to be the initial design of
+            %this job
             obj.linkedJob = parentJob;
         end
         
         function run(obj)
+            %RUN Send the TO problem to the optimizer
             obj.optConf.solverOptions.min_objective = @(varargin) obj.problem.nlopt_objective(varargin{:});
             obj.optConf.solverOptions.lower_bounds = zeros(size(obj.problem.fem.designPar));
             obj.optConf.solverOptions.upper_bounds = ones(size(obj.problem.fem.designPar));
@@ -57,6 +66,13 @@ classdef Job < handle
         end
         
         function save(obj, folderPath)
+            %SAVE Save the results from the optimization to files
+            
+            if isempty(obj.result)
+                warning("No results to save for job " + obj.name)
+                return
+            end
+            
             % Remove intermediate function which may hold figures
             obj.problem.intermediateFunc = [];
             if nargin < 2
@@ -67,17 +83,18 @@ classdef Job < handle
             Ey = obj.problem.fem.Ey;
             Ez = obj.problem.fem.Ey;
                
-            saveMatrix = [Ex; Ey; Ez; obj.result.finalSolution];
             pathPrefix = folderPath + obj.name;
             jobNameMat = pathPrefix + ".mat";
             jobNameTxt = pathPrefix + ".txt";
             
+            % Initiate a VTK Dumper to add data to
             if isa(obj.problem.fem.mesh, "StructuredMesh")
                 dumper = VTKDumper(obj.name, obj.problem.fem.mesh);
             else
                 dumper = VTKDumper(obj.name, obj.problem.fem.mesh, obj.problem.fem.elementType);
             end
             
+            % Add the state variables data to the dumper
             if isa(obj.problem.fem, "HeatFEMBase")
                 for t = 1:obj.problem.fem.timeSteps
                     data = struct(...
@@ -136,7 +153,7 @@ classdef Job < handle
                 filteredDesign = flipud(filteredDesign);
             end
             
-            
+            % Add the optimal design data to the dumper
             data = struct(...
                 "name", "FilteredDesign", ...
                 "type", "scalars", ...
@@ -163,7 +180,11 @@ classdef Job < handle
                     optConf_save.solverOptions = rmfield(optConf_save.solverOptions, field);
                 end
             end
+            % Save a backup .txt file for the filtered design
+            saveMatrix = [Ex; Ey; Ez; filteredDesign];
             save(jobNameTxt, 'saveMatrix', '-ascii','-double');
+            
+            % Save a .mat file with all the configuration data
             saveObj = struct(...
                 "name", obj.name, ...
                 "initialDesign", obj.initialDesign, ...
@@ -174,6 +195,8 @@ classdef Job < handle
                 "result", obj.result ...
                 );
             save(jobNameMat, 'saveObj');
+            
+            % Dump the dumper data to .VTK-files
             dumper.dump(pathPrefix);
             
             % Save figures if any
@@ -185,9 +208,17 @@ classdef Job < handle
         end
         
         function plotResult(obj, allTimeSteps)
+            %PLOTRESULT Plot the final design and corresponding state
+            %variables
+            if isempty(obj.result)
+                warning("No results to plot for job " + obj.name);
+                return
+            end
+            
             if nargin < 2
                 allTimeSteps = false;
             end
+
             if obj.problem.fem.spatialDimensions == 3
                 warning("The field variable in 3D is not displayable in Matlab");
                 return
@@ -195,6 +226,7 @@ classdef Job < handle
             Ex = obj.problem.fem.Ex;
             Ey = obj.problem.fem.Ey;
             filteredDesign = obj.result.finalSolutionFiltered;
+            axis equal
                
             figure
             sgtitle(obj.name);
@@ -207,15 +239,7 @@ classdef Job < handle
             subplot(subPlots, 1, iSubPlot);
             iSubPlot = iSubPlot + 1;
             title("Optimal density")
-            if size(obj.result.finalSolution, 1) == 2
-                patchPlot = elfield2(Ex, Ey, filteredDesign(2, :));
-                patchPlot.FaceAlpha = "flat";
-                patchPlot.FaceVertexAlphaData = filteredDesign(1, :)';
-            elseif size(obj.result.finalSolution, 1) == 1
-                elfield2(Ex, Ey, filteredDesign);
-            end
-            colorbar
-            caxis([0, 1]);
+            plotDesign(Ex, Ey, filteredDesign);
             
             if allTimeSteps
                 timeSteps = 0:obj.problem.fem.timeSteps-1;
@@ -246,25 +270,10 @@ classdef Job < handle
                     scaleFactor = 1;
                     newEx = Ex + scaleFactor*ed(1:2:end, :);
                     newEy = Ey + scaleFactor*ed(2:2:end, :);
-                    switch size(obj.result.finalSolution, 1)
-                        case 1
-                            elfield2(newEx, newEy, filteredDesign);
-                        case 2
-                            patchPlot = elfield2(newEx, newEy, filteredDesign(2, :));
-                            patchPlot.FaceAlpha = "flat";
-                            patchPlot.FaceVertexAlphaData = filteredDesign(1, :)';
-                        otherwise
-                            warning("The number of materials can not properly be displayed");
-                    end
+                    plotDesign(newEx, newEy, filteredDesign);
                     axis equal
-                    colorbar
-                    caxis([0, 1]);
                 end
                 drawnow
-            end
-            
-            if ismethod(obj.problem, "plotResults")
-                obj.problem.plotResults();
             end
         end
     end

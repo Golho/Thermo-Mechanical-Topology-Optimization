@@ -44,7 +44,7 @@ end
 xi = gaussPoints(:, 1);  
 eta = gaussPoints(:, 2);
 
-% Have every chunk of 3 rows below to one gaussian point
+% Have every chunk of 2 rows below to one gaussian point
 dNr = zeros(2*nbrGaussPnts, 4);
 dNr(1:2:end, [1 3]) = dNr(1:2:end, [1 3]) + eta/4;
 dNr(1:2:end, [2 4]) = dNr(1:2:end, [2 4]) - eta/4;

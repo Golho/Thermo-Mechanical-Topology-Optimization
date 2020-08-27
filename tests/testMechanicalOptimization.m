@@ -1,4 +1,4 @@
-clear; close all;
+function testMechanicalOptimization()
 
 jobManager = JobManager();
 
@@ -197,3 +197,4 @@ job = Job(topOpt, initial, opt);
 jobManager.runAll();
 %%
 jobManager.plotAll();
+end

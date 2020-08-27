@@ -1,4 +1,4 @@
-clear; close all;
+function testMechanicalSensitivity()
 timeSteps = 1;
 volumeFraction = 0.4;
 radius = 0.025;
@@ -108,3 +108,4 @@ assert(all(errors < 1e-5), "Sensitivities does not match");
 % 
 % errors = topOpt.testGradients(initial, 1e-6)
 % assert(all(errors < 1e-5), "Sensitivities does not match");
+end

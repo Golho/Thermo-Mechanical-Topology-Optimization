@@ -1,5 +1,4 @@
-clear; close all;
-
+function testCoupledSensitivity()
 timeSteps = 20;
 volumeFraction = 0.2;
 radius = 5e-5;
@@ -162,3 +161,4 @@ g(1) = topOpt.objective(initial)
 
 errors = topOpt.testGradients(initial, 1e-5)
 assert(all(errors < 1e-5), "Sensitivities does not match");
+end

@@ -26,17 +26,17 @@ k = 1e6;
 void = Material(9.3, 1.9e5, 1e-3, 1.1e3, 0.45, 0);
 material_1 = Material(930, 1.9e3, 22, 1.1e9, 0.45, 2e-5);
 material_2 = Material(930, 1.9e3, 22, 1.1e9, 0.45, 8e-5);
-materials = [void, material_1, material_2];
+materials = [void, material_2];
 %% Define the geometry
-width = 0.1;
-height = 0.1;
-mesh = StructuredMesh([161, width], [161, height]);
+width = 0.007;
+height = 0.01;
+mesh = StructuredMesh([71, width], [101, height]);
 globalCoord = mesh.coordinates();
 
 
 topAndLeftNodes = find(globalCoord(1, :) == 0 | ...
     globalCoord(2, :) == height);
-topRightNode = find(globalCoord(1, :) == height & globalCoord(2, :) == width);
+topRightNode = find(globalCoord(1, :) == width & globalCoord(2, :) == height);
 topCornerExpanded = find(globalCoord(2, :) == height & ...
     globalCoord(1, :) <= width/25);
 bottomNodes = find(globalCoord(2, :) == 0);
@@ -149,13 +149,13 @@ p_kappa = 3;
 p_E = 3;
 p_alpha = 3;
 
-addJob(600, p_cp, p_kappa, p_E, p_alpha);
+addJob(5, p_cp, p_kappa, p_E, p_alpha);
 
 %%
 
 %%
-%jobManager.runAndSaveAll();
-jobManager.runAll();
+jobManager.runAndSaveAll();
+%jobManager.runAll();
 %%
 jobManager.plotAll();
 %%
@@ -178,9 +178,9 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
     global timeSteps
     global stiffFEM
 
-    radius = 0.005;
-    u_max = 0.002;
-    volumeFraction = 0.3;
+    radius = 0.0005;
+    u_max = 0.008;
+    volumeFraction = 0.4;
     
     massLimit = volumeFraction * sum(mechFEM.volumes*materials(2).density);
     
@@ -214,7 +214,7 @@ function addJob(tFinal, p_cp, p_kappa, p_E, p_alpha)
 
         initial = volumeFraction * ones(size(heatFEM_i.designPar));
         %initial(1, :) = 0.1;
-        initial(2, :) = 0.5;
+        %initial(2, :) = 0.5;
 
         if i > 1
             opt.maxeval = 50;

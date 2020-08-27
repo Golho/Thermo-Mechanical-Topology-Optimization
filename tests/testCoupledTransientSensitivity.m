@@ -1,5 +1,4 @@
-clear; close all;
-
+function testCoupledTransientSensitivity()
 opt.maxtime = 15*60;
 opt.verbose = 1;
 opt.ftol_rel = 1e-7;
@@ -184,3 +183,4 @@ dgdphi = numGrad(@topOpt.objective, designPar, 1e-8);
 der_g = topOpt.gradObjective(designPar);
 norm(dgdphi - der_g) / norm(dgdphi)
 assert(norm(dgdphi - der_g) / norm(dgdphi) < 1e-5, "Sensitivities does not match");
+end
